@@ -41,7 +41,6 @@
 #include "shader.h"
 
 static gint setup_gl_context (GstGLESSink *sink);
-static gpointer gl_thread_proc (gpointer data);
 
 /* OpenGL ES 2.0 implementation */
 static GLuint
@@ -461,83 +460,6 @@ x11_handle_events (gpointer data)
 
 }
 
-static void
-gl_thread_init (GstGLESSink *sink)
-{
-    GstGLESThread *thread = &sink->gl_thread;
-
-    thread->handle = g_thread_new("gl_thread", gl_thread_proc, sink);
-    if (!sink->gl_thread.handle) {
-        g_error( "Could not create gl thread");
-    }
-}
-
-static void
-gl_thread_stop (GstGLESSink *sink)
-{
-    if (sink->gl_thread.running) {
-        sink->gl_thread.running = FALSE;
-        g_mutex_lock (&sink->gl_thread.data_lock);
-
-        g_cond_signal (&sink->gl_thread.data_signal);
-        g_mutex_unlock (&sink->gl_thread.data_lock);
-
-        g_thread_join(sink->gl_thread.handle);
-    }
-}
-
-/* gl thread main function */
-static gpointer
-gl_thread_proc (gpointer data)
-{
-    GstGLESSink *sink = data;
-    GstGLESThread *thread = &sink->gl_thread;
-
-    g_debug( "Init GL context (no timedwait)");
-    thread->running = setup_gl_context (sink) == 0;
-
-    g_debug( "Init GL context done, send signal");
-    /* signal gst_gles_sink_render that we are done */
-    g_mutex_lock (&thread->render_lock);
-    g_cond_signal (&thread->render_signal);
-    g_mutex_unlock (&thread->render_lock);
-
-    g_debug ("Enter gl_thread_proc loop");
-    while (thread->running) {
-        x11_handle_events (sink);
-
-        g_mutex_lock (&thread->data_lock);
-        /* wait till gst_gles_sink_render has some data for us */
-	while (thread->render_done && thread->running) {
-            g_cond_wait (&thread->data_signal, &thread->data_lock);
-	}
-
-            if (!thread->gles.initialized) {
-                /* generate the framebuffer object */
-                gl_gen_framebuffer (sink);
-                thread->gles.initialized = TRUE;
-            }
-
-            XLockDisplay (sink->x11.display);
-            gl_draw_fbo (sink);
-            gl_draw_onscreen (sink);
-            gl_draw_onscreen (sink);
-            XUnlockDisplay (sink->x11.display);
-	    thread->render_done = TRUE;
-
-        g_mutex_unlock (&thread->data_lock);
-
-        /* signal gst_gles_sink_render that we are done */
-        g_mutex_lock (&thread->render_lock);
-        g_cond_signal (&thread->render_signal);
-        g_mutex_unlock (&thread->render_lock);
-    }
-
-    egl_close(sink);
-    x11_close(sink);
-    return 0;
-}
-
 static gint
 setup_gl_context (GstGLESSink *sink)
 {
@@ -599,15 +521,13 @@ gst_gles_sink_init (GstGLESSink * sink)
     sink->video_width = 1920;
     sink->video_height = 1080;
 
-    g_mutex_init(&thread->data_lock);
-    g_mutex_init(&thread->render_lock);
-    g_cond_init(&thread->data_signal);
-    g_cond_init(&thread->render_signal);
-
     ret = XInitThreads();
     if (ret == 0) {
         g_error( "XInitThreads failed");
     }
+
+    setup_gl_context (sink);
+	gl_gen_framebuffer (sink);
 }
 
 /* GstElement vmethod implementations */
@@ -615,19 +535,6 @@ gst_gles_sink_init (GstGLESSink * sink)
 void
 gst_gles_sink_preroll (GstGLESSink* sink)
 {
-    GstGLESThread *thread = &sink->gl_thread;
-
-    if (!thread->running) {
-        g_mutex_lock (&thread->render_lock);
-        gl_thread_init(sink);
-        g_debug( "Wait for init GL context");
-	if (!thread->running) {
-            g_cond_wait (&thread->render_signal, &thread->render_lock);
-            g_mutex_unlock (&thread->render_lock);
-	}
-
-        g_debug( "Init completed");
-    }
 }
 
 void
@@ -635,24 +542,17 @@ gst_gles_sink_render (GstGLESSink *sink)
 {
     GstGLESThread *thread = &sink->gl_thread;
 
-    g_mutex_lock (&thread->data_lock);
-    thread->render_done = FALSE;
-    g_debug("send data-signal");
-    g_cond_signal (&thread->data_signal);
-    g_mutex_unlock (&thread->data_lock);
-
-    if (!thread->render_done) {
-        g_mutex_lock (&thread->render_lock);
-        g_cond_wait (&thread->render_signal, &thread->render_lock);
-        g_mutex_unlock (&thread->render_lock);
-    }
+	gl_draw_fbo (sink);
+	gl_draw_onscreen (sink);
+	x11_handle_events (sink);
 }
 
 static void
 gst_gles_sink_finalize (GObject *gobject)
 {
-    GstGLESSink *plugin = (GstGLESSink *)gobject;
+    GstGLESSink *sink = (GstGLESSink *)gobject;
 
-    gl_thread_stop (plugin);
+    egl_close(sink);
+    x11_close(sink);
 }
 

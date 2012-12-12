@@ -77,10 +77,6 @@ struct _GstGLESThread
 {
     /* thread context */
     GThread *handle;
-    GCond render_signal;
-    GCond data_signal;
-    GMutex render_lock;
-    GMutex data_lock;
     volatile gboolean render_done;
     volatile gboolean running;
 
