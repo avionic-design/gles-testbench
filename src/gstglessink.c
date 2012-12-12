@@ -353,9 +353,12 @@ egl_close(GstGLESSink *sink)
 static gint
 x11_init (GstGLESSink *sink, gint width, gint height)
 {
-    Window root;
     XSetWindowAttributes swa;
+    Atom fullscreen;
     XWMHints hints;
+    Atom wm_state;
+    Window root;
+    XEvent xev;
 
     sink->x11.display = XOpenDisplay (NULL);
     if(!sink->x11.display) {
@@ -383,7 +386,24 @@ x11_init (GstGLESSink *sink, gint width, gint height)
         hints.flags = InputHint;
         XSetWMHints(sink->x11.display, sink->x11.window, &hints);
 
+        fullscreen = XInternAtom(sink->x11.display, "_NET_WM_STATE_FULLSCREEN", False);
+        wm_state = XInternAtom(sink->x11.display, "_NET_WM_STATE", False);
+
+        memset(&xev, 0, sizeof(xev));
+        xev.type = ClientMessage;
+        xev.xclient.window = sink->x11.window;
+        xev.xclient.message_type = wm_state;
+        xev.xclient.format = 32;
+        xev.xclient.data.l[0] = 1;
+        xev.xclient.data.l[1] = fullscreen;
+        xev.xclient.data.l[2] = 0;
+
         XMapWindow (sink->x11.display, sink->x11.window);
+
+        XSendEvent (sink->x11.display, DefaultRootWindow(sink->x11.display), False,
+						SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+
+        XFlush(sink->x11.display);
         XStoreName (sink->x11.display, sink->x11.window, "GLESSink");
     } else {
         guint border, depth;
