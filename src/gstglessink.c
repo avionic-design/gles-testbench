@@ -227,6 +227,28 @@ gl_draw_onscreen (GstGLESSink *sink)
     eglSwapBuffers (gles->display, gles->surface);
 }
 
+void
+gl_draw_dummy(GstGLESSink *sink)
+{
+    static float red = 0.0;
+    static float blue = 1.0;
+
+    glBindFramebuffer (GL_FRAMEBUFFER, 0);
+    glViewport (0, 0, sink->x11.width, sink->x11.height);
+
+    GstGLESContext *gles = &sink->gl_thread.gles;
+    glClearColor(red, 0.0, blue, 1.0);
+
+    if (red == 0.0) {
+        red = 1.0;
+        blue = 0.0;
+    } else {
+        red = 0.0;
+        blue = 1.0;
+    }
+    eglSwapBuffers(gles->display, gles->surface);
+}
+
 /* EGL implementation */
 
 
@@ -562,9 +584,10 @@ gst_gles_sink_render (GstGLESSink *sink)
 {
     GstGLESThread *thread = &sink->gl_thread;
 
-	gl_draw_fbo (sink);
-	gl_draw_onscreen (sink);
-	x11_handle_events (sink);
+	//gl_draw_fbo (sink);
+	//gl_draw_onscreen (sink);
+	gl_draw_dummy(sink);
+	//x11_handle_events (sink);
 }
 
 static void
