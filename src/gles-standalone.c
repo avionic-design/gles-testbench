@@ -20,10 +20,13 @@
 #include <errno.h>
 
 #include "gstglessink.h"
+#define FRAME_COUNT 600
 
 int main(int argc, char **argv)
 {
 	GstGLESSink *sink;
+	gint64 start, stop;
+	float duration;
 	int i = 0;
 
 	g_type_init();
@@ -36,7 +39,13 @@ int main(int argc, char **argv)
 	gst_gles_sink_init(sink);
 	gst_gles_sink_preroll(sink);
 
-	while (i++ < 600) {
+	start = g_get_monotonic_time();
+	while (i++ < FRAME_COUNT) {
 		gst_gles_sink_render(sink);
 	}
+	stop = g_get_monotonic_time();
+
+	duration = (stop-start)/1000000.0;
+	g_print("Render time was %fs\n", duration);
+	g_print("Average fps was %.02f\n", FRAME_COUNT/duration);
 }
