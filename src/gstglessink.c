@@ -260,10 +260,9 @@ egl_init (GstGLESSink *sink)
 {
     const EGLint configAttribs[] =
     {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_DEPTH_SIZE, 16,
-        EGL_NONE
+		EGL_BUFFER_SIZE, 24,
+		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_NONE
     };
 
     const EGLint contextAttribs[] =
