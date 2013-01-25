@@ -32,11 +32,11 @@
 /* FIXME: Should be part of the GLES headers */
 #define GL_NVIDIA_PLATFORM_BINARY_NV                            0x890B
 
-static const gchar* shader_basenames[] = {
-    "deint_linear", /* SHADER_DEINT_LINEAR */
-    "copy", /* SHADER_COPY, simple linear scaled copy shader */
-    "colorcorrect", /*  SHADER_COLOR_CORRECT, simple shade which can apply a factor and an offset to rgb values */
-    "pattern", /* SHADER_PATTERN, simple pattern generator */
+static const gchar *shader_basenames[] = {
+	"deint_linear",		/* SHADER_DEINT_LINEAR */
+	"copy",			/* SHADER_COPY, simple linear scaled copy shader */
+	"colorcorrect",		/*  SHADER_COLOR_CORRECT, simple shade which can apply a factor and an offset to rgb values */
+	"pattern",		/* SHADER_PATTERN, simple pattern generator */
 	"copy_one_source"
 };
 
@@ -50,98 +50,93 @@ static const gchar* shader_basenames[] = {
 
 #define VERTEX_SHADER_BASENAME "vertex"
 
-static gboolean gl_extension_available(const gchar *extension)
+static gboolean gl_extension_available(const gchar * extension)
 {
-    const gchar *gl_extensions = (gchar*)glGetString(GL_EXTENSIONS);
-    return (g_strstr_len(gl_extensions, -1, extension) != NULL);
+	const gchar *gl_extensions = (gchar *) glGetString(GL_EXTENSIONS);
+	return (g_strstr_len(gl_extensions, -1, extension) != NULL);
 }
 
 /* load and compile a shader src into a shader program */
-static GLuint
-gl_load_source_shader (const char *shader_filename,
-                       GLenum type)
+static GLuint gl_load_source_shader(const char *shader_filename, GLenum type)
 {
-    GFile *shader_file;
-    GLuint shader = 0;
-    char *shader_src;
-    GLint compiled;
-    gsize src_len;
-    GError *err;
+	GFile *shader_file;
+	GLuint shader = 0;
+	char *shader_src;
+	GLint compiled;
+	gsize src_len;
+	GError *err;
 
-    /* create a shader object */
-    shader = glCreateShader (type);
-    if (shader == 0) {
-        g_error("Could not create shader object");
-        return 0;
-    }
+	/* create a shader object */
+	shader = glCreateShader(type);
+	if (shader == 0) {
+		g_error("Could not create shader object");
+		return 0;
+	}
 
-    /* read shader source from file */
-    shader_file = g_file_new_for_path (shader_filename);
-    if (!g_file_load_contents (shader_file, NULL, &shader_src, &src_len,
-                               NULL, &err)) {
-        g_error("Could not read shader source: %s\n",
-                         err->message);
-        g_free (err);
-        g_object_unref (shader_file);
-        glDeleteShader (shader);
-        return 0;
-    }
+	/* read shader source from file */
+	shader_file = g_file_new_for_path(shader_filename);
+	if (!g_file_load_contents(shader_file, NULL, &shader_src, &src_len,
+				  NULL, &err)) {
+		g_error("Could not read shader source: %s\n", err->message);
+		g_free(err);
+		g_object_unref(shader_file);
+		glDeleteShader(shader);
+		return 0;
+	}
 
-    /* load source into shader object */
-    src_len = strlen (shader_src);
-    glShaderSource (shader, 1, (const GLchar**) &shader_src,
-                    (const GLint*) &src_len);
+	/* load source into shader object */
+	src_len = strlen(shader_src);
+	glShaderSource(shader, 1, (const GLchar **)&shader_src,
+		       (const GLint *)&src_len);
 
-    /* shader code has been loaded into GL, free all resources
-     * we have used to load the shader */
-    g_free (shader_src);
-    g_object_unref (shader_file);
+	/* shader code has been loaded into GL, free all resources
+	 * we have used to load the shader */
+	g_free(shader_src);
+	g_object_unref(shader_file);
 
-    /* compile the shader */
-    glCompileShader (shader);
+	/* compile the shader */
+	glCompileShader(shader);
 
-    /* check compiler status */
-    glGetShaderiv (shader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled) {
-        GLint info_len = 0;
+	/* check compiler status */
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+	if (!compiled) {
+		GLint info_len = 0;
 
-        glGetShaderiv (shader, GL_INFO_LOG_LENGTH, &info_len);
-        if(info_len > 1) {
-            char *info_log = malloc (sizeof(char) * info_len);
-            glGetShaderInfoLog (shader, info_len, NULL, info_log);
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &info_len);
+		if (info_len > 1) {
+			char *info_log = malloc(sizeof(char) * info_len);
+			glGetShaderInfoLog(shader, info_len, NULL, info_log);
 
-            g_error("Failed to compile shader: %s", info_log);
-            free (info_log);
-        }
+			g_error("Failed to compile shader: %s", info_log);
+			free(info_log);
+		}
 
-        glDeleteShader (shader);
-        shader = 0;
-    } else {
-	g_debug("Shader compiled succesfully");
-    }
+		glDeleteShader(shader);
+		shader = 0;
+	} else {
+		g_debug("Shader compiled succesfully");
+	}
 
-    return shader;
+	return shader;
 }
 
 /*
  * Loads a shader from either precompiled binary file when possible.
  * If no binary is found the source file is taken and compiled at
  * runtime. */
-static GLuint
-gl_load_shader (const gchar *basename, const GLenum type)
+static GLuint gl_load_shader(const gchar * basename, const GLenum type)
 {
-    gchar *filename;
-    GLuint shader;
+	gchar *filename;
+	GLuint shader;
 
-    filename = g_strdup_printf ("%s/%s%s", DATA_DIR,
-			    basename,
-			    SHADER_EXT_SOURCE);
+	filename = g_strdup_printf("%s/%s%s", DATA_DIR,
+				   basename, SHADER_EXT_SOURCE);
 
-    g_debug("Load source shader from %s", filename);
-    shader = gl_load_source_shader(filename, type);
+	g_debug("Load source shader from %s", filename);
+	shader = gl_load_source_shader(filename, type);
 
-    g_free (filename);
-    return shader;
+	g_free(filename);
+	return shader;
 }
 
 /*
@@ -149,97 +144,97 @@ gl_load_shader (const gchar *basename, const GLenum type)
  * Vertex shader is a predefined default, fragment shader can be configured
  * through process_type */
 static gint
-gl_load_shaders (GstGLESShader *shader,
-                 GstGLESShaderTypes process_type)
+gl_load_shaders(GstGLESShader * shader, GstGLESShaderTypes process_type)
 {
-    shader->vertex_shader = gl_load_shader (VERTEX_SHADER_BASENAME,
-                                          GL_VERTEX_SHADER);
-    if (!shader->vertex_shader)
-        return -EINVAL;
+	shader->vertex_shader = gl_load_shader(VERTEX_SHADER_BASENAME,
+					       GL_VERTEX_SHADER);
+	if (!shader->vertex_shader)
+		return -EINVAL;
 
-    shader->fragment_shader = gl_load_shader (
-                                            shader_basenames[process_type],
-                                            GL_FRAGMENT_SHADER);
-    if (!shader->fragment_shader)
-        return -EINVAL;
+	shader->fragment_shader = gl_load_shader(shader_basenames[process_type],
+						 GL_FRAGMENT_SHADER);
+	if (!shader->fragment_shader)
+		return -EINVAL;
 
-    return 0;
+	return 0;
 }
 
-gint
-gl_init_shader (GstGLESShader *shader,
-                GstGLESShaderTypes process_type)
+gint gl_init_shader(GstGLESShader * shader, GstGLESShaderTypes process_type)
 {
-    gint linked;
-    GLint err;
-    gint ret;
+	gint linked;
+	GLint err;
+	gint ret;
 
-    shader->program = glCreateProgram();
-    if(!shader->program) {
-        g_error("Could not create GL program");
-        return -ENOMEM;
-    }
+	shader->program = glCreateProgram();
+	if (!shader->program) {
+		g_error("Could not create GL program");
+		return -ENOMEM;
+	}
 
-    /* load the shaders */
-    ret = gl_load_shaders(shader, process_type);
-    if(ret < 0) {
-        g_error("Could not create GL shaders: %d", ret);
-        return ret;
-    }
+	/* load the shaders */
+	ret = gl_load_shaders(shader, process_type);
+	if (ret < 0) {
+		g_error("Could not create GL shaders: %d", ret);
+		return ret;
+	}
 
-    glAttachShader(shader->program, shader->vertex_shader);
-    err = glGetError ();
-    if (err != GL_NO_ERROR) {
-        g_error("Error while attaching the vertex shader: 0x%04x\n", err);
-    }
+	glAttachShader(shader->program, shader->vertex_shader);
+	err = glGetError();
+	if (err != GL_NO_ERROR) {
+		g_error("Error while attaching the vertex shader: 0x%04x\n",
+			err);
+	}
 
-    glAttachShader(shader->program, shader->fragment_shader);
-    err = glGetError ();
-    if (err != GL_NO_ERROR) {
-        g_error("Error while attaching the fragment shader: 0x%04x\n", err);
-    }
+	glAttachShader(shader->program, shader->fragment_shader);
+	err = glGetError();
+	if (err != GL_NO_ERROR) {
+		g_error("Error while attaching the fragment shader: 0x%04x\n",
+			err);
+	}
 
-    glBindAttribLocation(shader->program, 0, "vPosition");
-    glLinkProgram(shader->program);
+	glBindAttribLocation(shader->program, 0, "vPosition");
+	glLinkProgram(shader->program);
 
-    /* check linker status */
-    glGetProgramiv(shader->program, GL_LINK_STATUS, &linked);
-    if(!linked) {
-        GLint info_len = 0;
-        g_error("Linker failure");
+	/* check linker status */
+	glGetProgramiv(shader->program, GL_LINK_STATUS, &linked);
+	if (!linked) {
+		GLint info_len = 0;
+		g_error("Linker failure");
 
-        glGetProgramiv(shader->program, GL_INFO_LOG_LENGTH, &info_len);
-        if(info_len > 1) {
-            char *info_log = malloc(sizeof(char) * info_len);
-            glGetProgramInfoLog(shader->program, info_len, NULL, info_log);
+		glGetProgramiv(shader->program, GL_INFO_LOG_LENGTH, &info_len);
+		if (info_len > 1) {
+			char *info_log = malloc(sizeof(char) * info_len);
+			glGetProgramInfoLog(shader->program, info_len, NULL,
+					    info_log);
 
-            g_error("Failed to link GL program: %s", info_log);
-            free(info_log);
-        }
+			g_error("Failed to link GL program: %s", info_log);
+			free(info_log);
+		}
 
-        glDeleteProgram(shader->program);
-        return -EINVAL;
-    }
+		glDeleteProgram(shader->program);
+		return -EINVAL;
+	}
 
-    glUseProgram(shader->program);
+	glUseProgram(shader->program);
 
-    shader->position_loc = glGetAttribLocation(shader->program, "vPosition");
-    shader->texcoord_loc = glGetAttribLocation(shader->program, "aTexcoord");
+	shader->position_loc =
+	    glGetAttribLocation(shader->program, "vPosition");
+	shader->texcoord_loc =
+	    glGetAttribLocation(shader->program, "aTexcoord");
 
-    glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
 
-    return 0;
+	return 0;
 }
 
-void
-gl_delete_shader(GstGLESShader *shader)
+void gl_delete_shader(GstGLESShader * shader)
 {
-    glDeleteShader (shader->vertex_shader);
-    shader->vertex_shader = 0;
+	glDeleteShader(shader->vertex_shader);
+	shader->vertex_shader = 0;
 
-    glDeleteShader (shader->fragment_shader);
-    shader->fragment_shader = 0;
+	glDeleteShader(shader->fragment_shader);
+	shader->fragment_shader = 0;
 
-    glDeleteProgram (shader->program);
-    shader->program = 0;
+	glDeleteProgram(shader->program);
+	shader->program = 0;
 }

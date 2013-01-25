@@ -31,7 +31,8 @@ int main(int argc, char **argv)
 	int i = 0;
 
 	if (argc < 2) {
-		printf("usage: %s [blank|copy|one_source|deinterlace]\n", argv[0]);
+		printf("usage: %s [blank|copy|one_source|deinterlace]\n",
+		       argv[0]);
 		exit(1);
 	}
 	g_type_init();
@@ -60,7 +61,7 @@ int main(int argc, char **argv)
 	}
 	stop = g_get_monotonic_time();
 
-	duration = (stop-start)/1000000.0;
+	duration = (stop - start) / 1000000.0;
 	g_print("\tRendered %d frames in %fs\n", FRAME_COUNT, duration);
-	g_print("\tAverage fps was %.02f\n", FRAME_COUNT/duration);
+	g_print("\tAverage fps was %.02f\n", FRAME_COUNT / duration);
 }

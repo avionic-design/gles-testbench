@@ -28,59 +28,55 @@
 
 #include "shader.h"
 
+typedef struct _GstGLESSink GstGLESSink;
+typedef struct _GstGLESWindow GstGLESWindow;
+typedef struct _GstGLESContext GstGLESContext;
+typedef struct _GstGLESThread GstGLESThread;
 
-typedef struct _GstGLESSink        GstGLESSink;
-typedef struct _GstGLESWindow      GstGLESWindow;
-typedef struct _GstGLESContext     GstGLESContext;
-typedef struct _GstGLESThread      GstGLESThread;
+struct _GstGLESWindow {
+	/* thread context */
+	GThread *thread;
+	volatile gboolean running;
 
-struct _GstGLESWindow
-{
-    /* thread context */
-    GThread *thread;
-    volatile gboolean running;
+	gint width;
+	gint height;
 
-    gint width;
-    gint height;
-
-    /* x11 context */
-    Display *display;
-    Window window;
-    gboolean external_window;
+	/* x11 context */
+	Display *display;
+	Window window;
+	gboolean external_window;
 };
 
-struct _GstGLESContext
-{
-    gboolean initialized;
+struct _GstGLESContext {
+	gboolean initialized;
 
-    /* egl context */
-    EGLDisplay display;
-    EGLSurface surface;
-    EGLContext context;
+	/* egl context */
+	EGLDisplay display;
+	EGLSurface surface;
+	EGLContext context;
 
-    /* shader programs */
-    GstGLESShader deinterlace;
-    GstGLESShader scale;
+	/* shader programs */
+	GstGLESShader deinterlace;
+	GstGLESShader scale;
 
-    /* textures for yuv input planes */
-    GstGLESTexture y_tex;
-    GstGLESTexture u_tex;
-    GstGLESTexture v_tex;
+	/* textures for yuv input planes */
+	GstGLESTexture y_tex;
+	GstGLESTexture u_tex;
+	GstGLESTexture v_tex;
 
-    GstGLESTexture rgb_tex;
+	GstGLESTexture rgb_tex;
 
-    /* framebuffer object */
-    GLuint framebuffer;
+	/* framebuffer object */
+	GLuint framebuffer;
 };
 
-struct _GstGLESThread
-{
-    /* thread context */
-    GThread *handle;
-    volatile gboolean render_done;
-    volatile gboolean running;
+struct _GstGLESThread {
+	/* thread context */
+	GThread *handle;
+	volatile gboolean render_done;
+	volatile gboolean running;
 
-    GstGLESContext gles;
+	GstGLESContext gles;
 };
 
 enum render_mode {
@@ -91,35 +87,34 @@ enum render_mode {
 	GLES_DEINTERLACE
 };
 
-struct _GstGLESSink
-{
-  GstGLESWindow x11;
-  GstGLESThread gl_thread;
+struct _GstGLESSink {
+	GstGLESWindow x11;
+	GstGLESThread gl_thread;
 
-  gint par_n;
-  gint par_d;
+	gint par_n;
+	gint par_d;
 
-  gint video_width;
-  gint video_height;
+	gint video_width;
+	gint video_height;
 
-  /* properties */
-  guint crop_top;
-  guint crop_bottom;
-  guint crop_left;
-  guint crop_right;
+	/* properties */
+	guint crop_top;
+	guint crop_bottom;
+	guint crop_left;
+	guint crop_right;
 
-  /* options for color correction shader */
-  gfloat add[3];
-  gfloat factor[3];
+	/* options for color correction shader */
+	gfloat add[3];
+	gfloat factor[3];
 
-  gfloat keystone;
+	gfloat keystone;
 
-  gboolean silent;
+	gboolean silent;
 
-  guint drop_first;
-  guint dropped;
+	guint drop_first;
+	guint dropped;
 
-  enum render_mode mode;
+	enum render_mode mode;
 };
 
-#endif /* _GST_GLES_SINK_H__ */
+#endif				/* _GST_GLES_SINK_H__ */

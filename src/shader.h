@@ -22,40 +22,35 @@
 #ifndef _SHADER_H__
 #define _SHADER_H__
 
-typedef enum _GstGLESShaderTypes   GstGLESShaderTypes;
-typedef struct _GstGLESTexture     GstGLESTexture;
-typedef struct _GstGLESShader      GstGLESShader;
+typedef enum _GstGLESShaderTypes GstGLESShaderTypes;
+typedef struct _GstGLESTexture GstGLESTexture;
+typedef struct _GstGLESShader GstGLESShader;
 
 enum _GstGLESShaderTypes {
-    SHADER_DEINT_LINEAR = 0,
-    SHADER_COPY,
-    SHADER_COLOR_CORRECT,
-    SHADER_PATTERN,
+	SHADER_DEINT_LINEAR = 0,
+	SHADER_COPY,
+	SHADER_COLOR_CORRECT,
+	SHADER_PATTERN,
 	SHADER_ONE_SOURCE
 };
 
-struct _GstGLESShader
-{
-    gint program;
-    GLuint vertex_shader;
-    GLuint fragment_shader;
+struct _GstGLESShader {
+	gint program;
+	GLuint vertex_shader;
+	GLuint fragment_shader;
 
-    /* standard locations, used in most shaders */
-    GLint position_loc;
-    GLint texcoord_loc;
+	/* standard locations, used in most shaders */
+	GLint position_loc;
+	GLint texcoord_loc;
 };
 
-struct _GstGLESTexture
-{
-    GLuint id;
-    GLint loc;
+struct _GstGLESTexture {
+	GLuint id;
+	GLint loc;
 };
 
 /* initialises the GL program with its shaders and sets the program handle
  * returns 0 on succes, -1 on failure*/
-gint
-gl_init_shader (GstGLESShader *shader,
-                GstGLESShaderTypes process_type);
-void
-gl_delete_shader (GstGLESShader *shader);
+gint gl_init_shader(GstGLESShader * shader, GstGLESShaderTypes process_type);
+void gl_delete_shader(GstGLESShader * shader);
 #endif
