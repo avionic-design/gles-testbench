@@ -511,8 +511,8 @@ setup_gl_context (GstGLESSink *sink)
 	int shader;
     gint ret;
 
-    sink->x11.width = 1920;
-    sink->x11.height = 1080;
+    sink->x11.width = 1366;
+    sink->x11.height = 768;
     if (x11_init (sink, sink->x11.width, sink->x11.height) < 0) {
         g_error( "X11 init failed, abort");
         return -ENOMEM;
@@ -574,8 +574,8 @@ gst_gles_sink_init (GstGLESSink * sink)
 
     sink->silent = FALSE;
     sink->gl_thread.gles.initialized = FALSE;
-    sink->video_width = 1920;
-    sink->video_height = 1080;
+    sink->video_width = 1366;
+    sink->video_height = 768;
 	sink->mode = GLES_BLANK;
 
     ret = XInitThreads();
