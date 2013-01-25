@@ -37,6 +37,7 @@ static const gchar* shader_basenames[] = {
     "copy", /* SHADER_COPY, simple linear scaled copy shader */
     "colorcorrect", /*  SHADER_COLOR_CORRECT, simple shade which can apply a factor and an offset to rgb values */
     "pattern", /* SHADER_PATTERN, simple pattern generator */
+	"copy_one_source"
 };
 
 #ifndef DATA_DIR

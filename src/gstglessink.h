@@ -83,6 +83,14 @@ struct _GstGLESThread
     GstGLESContext gles;
 };
 
+enum render_mode {
+	GLES_BLANK,
+	GLES_COPY,
+	GLES_COLOR_CORRECT,
+	GLES_ONE_SOURCE,
+	GLES_DEINTERLACE
+};
+
 struct _GstGLESSink
 {
   GstGLESWindow x11;
@@ -110,6 +118,8 @@ struct _GstGLESSink
 
   guint drop_first;
   guint dropped;
+
+  enum render_mode mode;
 };
 
 #endif /* _GST_GLES_SINK_H__ */

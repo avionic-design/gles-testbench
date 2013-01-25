@@ -95,17 +95,19 @@ gl_bind_uniform_cc(GstGLESSink *sink)
     GLint factor_loc;
     GLint add_loc;
 
-    add_loc = glGetUniformLocation(gles->scale.program,
-                                 "add");
-    factor_loc = glGetUniformLocation(gles->scale.program,
-                                 "factor");
+	if (sink->mode == GLES_COLOR_CORRECT) {
+		add_loc = glGetUniformLocation(gles->scale.program,
+									 "add");
+		factor_loc = glGetUniformLocation(gles->scale.program,
+									 "factor");
 
-    g_debug( "uniform locations: factor=%d, add=%d", factor_loc,
-			add_loc);
-    g_debug( "factor values: %f, %f, %f", sink->factor[0],
-			    sink->factor[1], sink->factor[2]);
-    glUniform3f(add_loc, sink->add[0], sink->add[1], sink->add[2]);
-    glUniform3f(factor_loc, sink->factor[0], sink->factor[1], sink->factor[2]);
+		g_debug( "uniform locations: factor=%d, add=%d", factor_loc,
+				add_loc);
+		g_debug( "factor values: %f, %f, %f", sink->factor[0],
+					sink->factor[1], sink->factor[2]);
+		glUniform3f(add_loc, sink->add[0], sink->add[1], sink->add[2]);
+		glUniform3f(factor_loc, sink->factor[0], sink->factor[1], sink->factor[2]);
+	}
 }
 
 static void
@@ -228,16 +230,15 @@ gl_draw_onscreen (GstGLESSink *sink)
 }
 
 void
-gl_draw_dummy(GstGLESSink *sink)
+gl_clear_draw(GstGLESSink *sink)
 {
-    static float red = 0.0;
-    static float blue = 1.0;
+    static int red = 0;
+    static int blue = 1;
 
     glBindFramebuffer (GL_FRAMEBUFFER, 0);
     glViewport (0, 0, sink->x11.width, sink->x11.height);
 
     GstGLESContext *gles = &sink->gl_thread.gles;
-    glClearColor(red, 0.0, blue, 1.0);
 
     if (red == 0.0) {
         red = 1.0;
@@ -246,6 +247,8 @@ gl_draw_dummy(GstGLESSink *sink)
         red = 0.0;
         blue = 1.0;
     }
+    glClearColor(red, 0.0, blue, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
     eglSwapBuffers(gles->display, gles->surface);
 }
 
@@ -506,6 +509,7 @@ static gint
 setup_gl_context (GstGLESSink *sink)
 {
     GstGLESContext *gles = &sink->gl_thread.gles;
+	int shader;
     gint ret;
 
     sink->x11.width = 1920;
@@ -521,23 +525,34 @@ setup_gl_context (GstGLESSink *sink)
         return -ENOMEM;
     }
 
-    ret = gl_init_shader (&gles->deinterlace,
-                          SHADER_PATTERN);
-    if (ret < 0) {
-        g_error( "Could not initialize shader: %d", ret);
-        egl_close (sink);
-        x11_close (sink);
-        return -ENOMEM;
-    }
+	if (sink->mode != GLES_BLANK) {
+		ret = gl_init_shader (&gles->deinterlace,
+							  SHADER_PATTERN);
+		if (ret < 0) {
+			g_error( "Could not initialize shader: %d", ret);
+			egl_close (sink);
+			x11_close (sink);
+			return -ENOMEM;
+		}
 
-    ret = gl_init_shader (&gles->scale, SHADER_COLOR_CORRECT);
-    if (ret < 0) {
-        g_error( "Could not initialize shader: %d", ret);
-        egl_close (sink);
-        x11_close (sink);
-        return -ENOMEM;
-    }
-    gles->rgb_tex.loc = glGetUniformLocation(gles->scale.program, "s_tex");
+		if (sink->mode == GLES_COPY)
+			shader = SHADER_COPY;
+		else if (sink->mode == GLES_DEINTERLACE)
+			shader = SHADER_DEINT_LINEAR;
+		else if (sink->mode == GLES_ONE_SOURCE)
+			shader = SHADER_ONE_SOURCE;
+		else
+			shader = SHADER_COPY;
+
+		ret = gl_init_shader (&gles->scale, shader);
+		if (ret < 0) {
+			g_error( "Could not initialize shader: %d", ret);
+			egl_close (sink);
+			x11_close (sink);
+			return -ENOMEM;
+		}
+		gles->rgb_tex.loc = glGetUniformLocation(gles->scale.program, "s_tex");
+	}
     //gl_init_textures (sink);
 
     return 0;
@@ -562,14 +577,12 @@ gst_gles_sink_init (GstGLESSink * sink)
     sink->gl_thread.gles.initialized = FALSE;
     sink->video_width = 1920;
     sink->video_height = 1080;
+	sink->mode = GLES_BLANK;
 
     ret = XInitThreads();
     if (ret == 0) {
         g_error( "XInitThreads failed");
     }
-
-    setup_gl_context (sink);
-	gl_gen_framebuffer (sink);
 }
 
 /* GstElement vmethod implementations */
@@ -577,6 +590,8 @@ gst_gles_sink_init (GstGLESSink * sink)
 void
 gst_gles_sink_preroll (GstGLESSink* sink)
 {
+    setup_gl_context (sink);
+	gl_gen_framebuffer (sink);
 }
 
 void
@@ -584,9 +599,12 @@ gst_gles_sink_render (GstGLESSink *sink)
 {
     GstGLESThread *thread = &sink->gl_thread;
 
-	//gl_draw_fbo (sink);
-	//gl_draw_onscreen (sink);
-	gl_draw_dummy(sink);
+	if (sink->mode == GLES_BLANK) {
+		gl_clear_draw(sink);
+	} else {
+		gl_draw_fbo (sink);
+		gl_draw_onscreen (sink);
+	}
 	//x11_handle_events (sink);
 }
 
