@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 	int i = 0;
 
 	if (argc < 2) {
-		printf("usage: %s [blank|copy|one_source|deinterlace]\n",
+		printf("usage: %s [blank|copy|one_source|deinterlace] [16|24]\n",
 		       argv[0]);
 		exit(1);
 	}
@@ -52,6 +52,10 @@ int main(int argc, char **argv)
 		sink->mode = GLES_ONE_SOURCE;
 	else if (strcmp(argv[1], "deinterlace") == 0)
 		sink->mode = GLES_DEINTERLACE;
+
+	if (argc == 3 && strcmp(argv[2], "16") == 0) {
+		sink->depth = 16;
+	}
 
 	gst_gles_sink_preroll(sink);
 

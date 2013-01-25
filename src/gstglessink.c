@@ -245,7 +245,7 @@ void gl_clear_draw(GstGLESSink * sink)
 static gint egl_init(GstGLESSink * sink)
 {
 	const EGLint configAttribs[] = {
-		EGL_BUFFER_SIZE, 24,
+		EGL_BUFFER_SIZE, sink->depth,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
 	};
@@ -554,6 +554,7 @@ void gst_gles_sink_init(GstGLESSink * sink)
 	sink->gl_thread.gles.initialized = FALSE;
 	sink->video_width = 1366;
 	sink->video_height = 768;
+	sink->depth = 24;
 	sink->mode = GLES_BLANK;
 
 	ret = XInitThreads();

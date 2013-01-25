@@ -115,6 +115,7 @@ struct _GstGLESSink {
 	guint dropped;
 
 	enum render_mode mode;
+	int depth;
 };
 
 #endif				/* _GST_GLES_SINK_H__ */
