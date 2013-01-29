@@ -16,6 +16,17 @@ PKG_CHECK_MODULES(X11, x11)
 PKG_CHECK_MODULES(GLESV2, glesv2)
 PKG_CHECK_MODULES(EGL, egl)
 
+CFLAGS="$CFLAGS -Wall"
+
+AC_ARG_ENABLE([werror],
+	[AS_HELP_STRING([--enable-werror],
+		[Treat warnings as errors (default: disabled)])],
+		[enable_werror="$enableval"],
+		[enable_werror=no])
+if test "x$enable_werror" = "xyes"; then
+	CFLAGS="$CFLAGS -Werror"
+fi
+
 AC_OUTPUT([
 	Makefile
 	src/Makefile
