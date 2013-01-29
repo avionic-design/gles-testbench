@@ -60,11 +60,11 @@ static gboolean gl_extension_available(const gchar * extension)
 static GLuint gl_load_source_shader(const char *shader_filename, GLenum type)
 {
 	GFile *shader_file;
+	GError *err = NULL;
 	GLuint shader = 0;
 	char *shader_src;
 	GLint compiled;
 	gsize src_len;
-	GError *err;
 
 	/* create a shader object */
 	shader = glCreateShader(type);
@@ -78,9 +78,9 @@ static GLuint gl_load_source_shader(const char *shader_filename, GLenum type)
 	if (!g_file_load_contents(shader_file, NULL, &shader_src, &src_len,
 				  NULL, &err)) {
 		g_error("Could not read shader source: %s\n", err->message);
-		g_free(err);
 		g_object_unref(shader_file);
 		glDeleteShader(shader);
+		g_clear_error(&err);
 		return 0;
 	}
 
