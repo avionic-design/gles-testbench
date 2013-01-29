@@ -76,13 +76,6 @@ static void gl_gen_framebuffer(GstGLESSink * sink)
 			       GL_TEXTURE_2D, gles->rgb_tex.id, 0);
 }
 
-static void gl_init_textures(GstGLESSink * sink)
-{
-	sink->gl_thread.gles.y_tex.id = gl_create_texture(GL_NEAREST);
-	sink->gl_thread.gles.u_tex.id = gl_create_texture(GL_NEAREST);
-	sink->gl_thread.gles.v_tex.id = gl_create_texture(GL_NEAREST);
-}
-
 /* bind the uniforms used in the color correction filter */
 static void gl_bind_uniform_cc(GstGLESSink * sink)
 {
@@ -187,7 +180,7 @@ void gl_draw_onscreen(GstGLESSink * sink)
 		posVertices[6] += offset;	/* top left */
 		posVertices[4] -= offset;	/* top right */
 	} else if (sink->keystone < 0) {
-		float offset = -1 * sink->keystone / 2;
+		//float offset = -1 * sink->keystone / 2;
 		//posVertices[14] += offset;
 		//posVertices[10] -= offset;
 	}
@@ -454,37 +447,6 @@ static void x11_close(GstGLESSink * sink)
 	}
 }
 
-static void x11_handle_events(gpointer data)
-{
-	GstGLESSink *sink = data;
-
-	XLockDisplay(sink->x11.display);
-	while (XPending(sink->x11.display)) {
-		XEvent xev;
-		XNextEvent(sink->x11.display, &xev);
-
-		switch (xev.type) {
-		case ConfigureRequest:
-			g_print("XConfigure* Request\n");
-		case ConfigureNotify:
-			g_debug("XConfigure* Event: wxh: %dx%d",
-				xev.xconfigure.width, xev.xconfigure.height);
-			g_print("XConfigure* Event: wxh: %dx%d\n",
-				xev.xconfigure.width, xev.xconfigure.height);
-			sink->x11.width = xev.xconfigure.width;
-			sink->x11.height = xev.xconfigure.height;
-
-			g_debug("force redraw\n");
-			gl_draw_onscreen(sink);
-			break;
-		default:
-			break;
-		}
-	}
-	XUnlockDisplay(sink->x11.display);
-
-}
-
 static gint setup_gl_context(GstGLESSink * sink)
 {
 	GstGLESContext *gles = &sink->gl_thread.gles;
@@ -532,7 +494,6 @@ static gint setup_gl_context(GstGLESSink * sink)
 		gles->rgb_tex.loc =
 		    glGetUniformLocation(gles->scale.program, "s_tex");
 	}
-	//gl_init_textures (sink);
 
 	return 0;
 }
@@ -573,21 +534,16 @@ void gst_gles_sink_preroll(GstGLESSink * sink)
 
 void gst_gles_sink_render(GstGLESSink * sink)
 {
-	GstGLESThread *thread = &sink->gl_thread;
-
 	if (sink->mode == GLES_BLANK) {
 		gl_clear_draw(sink);
 	} else {
 		gl_draw_fbo(sink);
 		gl_draw_onscreen(sink);
 	}
-	//x11_handle_events (sink);
 }
 
 static void gst_gles_sink_finalize(GObject * gobject)
 {
-	GstGLESSink *sink = (GstGLESSink *) gobject;
-
 	egl_close(sink);
 	x11_close(sink);
 }
