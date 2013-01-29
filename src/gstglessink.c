@@ -19,23 +19,21 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#  include "config.h"
 #endif
 
-#include <glib.h>
-#include <glib/gstdio.h>
-#include <gio/gio.h>
-
+#include <errno.h>
+#include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <glib.h>
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
 #include <X11/Xatom.h>
-
-#include <unistd.h>
-#include <errno.h>
 
 #include "gstglessink.h"
 #include "shader.h"
@@ -502,11 +500,13 @@ static gint setup_gl_context(GstGLESSink * sink)
  * initialize the plug-in itself
  * register the element factories and other features
  */
-void gst_gles_sink_init(GstGLESSink * sink)
+int gst_gles_sink_init(GstGLESSink * sink, unsigned int depth)
 {
-	GstGLESThread *thread = &sink->gl_thread;
 	Status ret;
 	int i;
+
+	if (depth != 16 && depth != 24)
+		return -EINVAL;
 
 	for (i = 0; i < 3; i++)
 		sink->factor[i] = 1.0;
@@ -515,34 +515,42 @@ void gst_gles_sink_init(GstGLESSink * sink)
 	sink->gl_thread.gles.initialized = FALSE;
 	sink->video_width = 1366;
 	sink->video_height = 768;
-	sink->depth = 24;
+	sink->depth = depth;
 	sink->mode = GLES_BLANK;
 
 	ret = XInitThreads();
 	if (ret == 0) {
 		g_error("XInitThreads failed");
+		return -ENOSYS;
 	}
+
+	return 0;
 }
 
 /* GstElement vmethod implementations */
 
-void gst_gles_sink_preroll(GstGLESSink * sink)
+void gst_gles_sink_preroll(GstGLESSink * sink, bool regenerate)
 {
 	setup_gl_context(sink);
 	gl_gen_framebuffer(sink);
+
+	if (!regenerate)
+		gl_draw_fbo(sink);
 }
 
-void gst_gles_sink_render(GstGLESSink * sink)
+void gst_gles_sink_render(GstGLESSink * sink, bool regenerate)
 {
 	if (sink->mode == GLES_BLANK) {
 		gl_clear_draw(sink);
 	} else {
-		gl_draw_fbo(sink);
+		if (regenerate)
+			gl_draw_fbo(sink);
+
 		gl_draw_onscreen(sink);
 	}
 }
 
-static void gst_gles_sink_finalize(GObject * gobject)
+void gst_gles_sink_finalize(GstGLESSink * sink)
 {
 	egl_close(sink);
 	x11_close(sink);

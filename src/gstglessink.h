@@ -118,4 +118,9 @@ struct _GstGLESSink {
 	int depth;
 };
 
+int gst_gles_sink_init(GstGLESSink * sink, unsigned int depth);
+void gst_gles_sink_preroll(GstGLESSink * sink, bool regenerate);
+void gst_gles_sink_render(GstGLESSink * sink, bool regenerate);
+void gst_gles_sink_finalize(GstGLESSink * sink);
+
 #endif				/* _GST_GLES_SINK_H__ */
