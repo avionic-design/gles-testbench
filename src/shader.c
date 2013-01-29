@@ -29,9 +29,6 @@
 
 #include "shader.h"
 
-/* FIXME: Should be part of the GLES headers */
-#define GL_NVIDIA_PLATFORM_BINARY_NV                            0x890B
-
 static const gchar *shader_basenames[] = {
 	"deint_linear",		/* SHADER_DEINT_LINEAR */
 	"copy",			/* SHADER_COPY, simple linear scaled copy shader */
@@ -49,12 +46,6 @@ static const gchar *shader_basenames[] = {
 #define SHADER_EXT_SOURCE ".glsl"
 
 #define VERTEX_SHADER_BASENAME "vertex"
-
-static gboolean gl_extension_available(const gchar * extension)
-{
-	const gchar *gl_extensions = (gchar *) glGetString(GL_EXTENSIONS);
-	return (g_strstr_len(gl_extensions, -1, extension) != NULL);
-}
 
 /* load and compile a shader src into a shader program */
 static GLuint gl_load_source_shader(const char *shader_filename, GLenum type)
