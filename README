@@ -1,0 +1,38 @@
+Software Requirements
+=====================
+
+Make sure that the following packages are installed:
+  - autoconf
+  - automake
+  - pkg-config
+
+In addition, the following libraries are required by the GLES testbench:
+  - glib-2.0
+  - libX11
+  - GLESv2
+  - EGL
+
+Build Instructions
+==================
+
+Run the autogen.sh script from the top of the source tree:
+
+  $ ./autogen.sh
+
+This will automatically run the configure script. After configuration is
+done, run `make':
+
+  $ make
+
+Which will generate the `gles-standalone' binary in the `src' directory.
+
+Running Tests
+=============
+
+Running the `gles-standalone' binary without parameters or passing the
+`--help' option shows a summary of options and available test cases.
+
+`gles-standalone' outputs a summary of the benchmarking results.
+
+For convenience, the `run-tests.sh' script is provided in the top of the
+source tree. It will automatically run all tests.
