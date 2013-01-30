@@ -505,7 +505,7 @@ int gst_gles_sink_init(GstGLESSink * sink, unsigned int depth)
 	Status ret;
 	int i;
 
-	if (depth != 16 && depth != 24)
+	if (depth != 16 && depth != 24 && depth != 30)
 		return -EINVAL;
 
 	for (i = 0; i < 3; i++)

@@ -88,7 +88,13 @@ if test "$performance" = "yes"; then
 fi
 
 echo " Using depth: $depth"
-xserver_args="-depth $depth"
+
+if test "$depth" = "16" -o "$depth" = "24"; then
+	xserver_args="-depth $depth"
+else
+	xserver_args="-depth 24"
+fi
+
 test_args="--depth $depth"
 
 if test "$regenerate" = "yes"; then
