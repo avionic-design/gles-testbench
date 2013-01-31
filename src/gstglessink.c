@@ -117,6 +117,13 @@ static void gl_draw_fbo(GstGLESSink * sink)
 		0.0f, 0.0f,
 	};
 
+	GLfloat texVertices[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+
 	glBindFramebuffer(GL_FRAMEBUFFER, gles->framebuffer);
 	glUseProgram(gles->deinterlace.program);
 
@@ -124,15 +131,17 @@ static void gl_draw_fbo(GstGLESSink * sink)
 
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glVertexAttribPointer(gles->deinterlace.position_loc, 2,
-			      GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat),
-			      vVertices);
+	glVertexAttribPointer(gles->deinterlace.position_loc, 2, GL_FLOAT,
+			      GL_FALSE, 4 * sizeof(GLfloat), vVertices);
+	glVertexAttribPointer(gles->deinterlace.texcoord_loc, 2, GL_FLOAT,
+			      GL_FALSE, 2 * sizeof(GLfloat), texVertices);
 
 	glEnableVertexAttribArray(gles->deinterlace.position_loc);
+	glEnableVertexAttribArray(gles->deinterlace.texcoord_loc);
 
 // FIXME: bind fbo as texture
-	line_height_loc =
-	    glGetUniformLocation(gles->deinterlace.program, "line_height");
+	line_height_loc = glGetUniformLocation(gles->deinterlace.program,
+					       "line_height");
 	glUniform1f(line_height_loc, 1.0 / sink->height);
 
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
