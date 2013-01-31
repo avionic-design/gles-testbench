@@ -38,9 +38,6 @@ struct _GstGLESWindow {
 	GThread *thread;
 	volatile gboolean running;
 
-	gint width;
-	gint height;
-
 	/* x11 context */
 	Display *display;
 	Window window;
@@ -48,8 +45,6 @@ struct _GstGLESWindow {
 };
 
 struct _GstGLESContext {
-	gboolean initialized;
-
 	/* egl context */
 	EGLDisplay display;
 	EGLSurface surface;
@@ -70,15 +65,6 @@ struct _GstGLESContext {
 	GLuint framebuffer;
 };
 
-struct _GstGLESThread {
-	/* thread context */
-	GThread *handle;
-	volatile gboolean render_done;
-	volatile gboolean running;
-
-	GstGLESContext gles;
-};
-
 enum render_mode {
 	GLES_BLANK,
 	GLES_COPY,
@@ -89,13 +75,13 @@ enum render_mode {
 
 struct _GstGLESSink {
 	GstGLESWindow x11;
-	GstGLESThread gl_thread;
+	GstGLESContext gles;
 
 	gint par_n;
 	gint par_d;
 
-	gint video_width;
-	gint video_height;
+	unsigned int width;
+	unsigned int height;
 
 	/* properties */
 	guint crop_top;

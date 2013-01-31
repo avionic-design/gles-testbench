@@ -59,15 +59,16 @@ static GLuint gl_create_texture(GLuint tex_filter)
 
 static void gl_gen_framebuffer(GstGLESSink * sink)
 {
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
+
 	glGenFramebuffers(1, &gles->framebuffer);
 
 	gles->rgb_tex.id = gl_create_texture(GL_LINEAR);
 	if (!gles->rgb_tex.id)
 		g_error("Could not create RGB texture");
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, sink->video_width,
-		     sink->video_height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, sink->width, sink->height, 0,
+		     GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, gles->framebuffer);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -77,7 +78,7 @@ static void gl_gen_framebuffer(GstGLESSink * sink)
 /* bind the uniforms used in the color correction filter */
 static void gl_bind_uniform_cc(GstGLESSink * sink)
 {
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
 	GLint factor_loc;
 	GLint add_loc;
 
@@ -98,7 +99,7 @@ static void gl_bind_uniform_cc(GstGLESSink * sink)
 
 static void gl_draw_fbo(GstGLESSink * sink)
 {
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
 	GLushort indices[] = { 0, 1, 2, 0, 2, 3 };
 	GLint line_height_loc;
 
@@ -119,7 +120,7 @@ static void gl_draw_fbo(GstGLESSink * sink)
 	glBindFramebuffer(GL_FRAMEBUFFER, gles->framebuffer);
 	glUseProgram(gles->deinterlace.program);
 
-	glViewport(0, 0, sink->video_width, sink->video_height);
+	glViewport(0, 0, sink->width, sink->height);
 
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -132,7 +133,7 @@ static void gl_draw_fbo(GstGLESSink * sink)
 // FIXME: bind fbo as texture
 	line_height_loc =
 	    glGetUniformLocation(gles->deinterlace.program, "line_height");
-	glUniform1f(line_height_loc, 1.0 / sink->video_height);
+	glUniform1f(line_height_loc, 1.0 / sink->height);
 
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
 }
@@ -155,13 +156,13 @@ void gl_draw_onscreen(GstGLESSink * sink)
 
 	GLushort indices[] = { 0, 1, 2, 0, 2, 3 };
 
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
 
 	/* add cropping to texture coordinates */
-	float crop_left = (float)sink->crop_left / sink->video_width;
-	float crop_right = (float)sink->crop_right / sink->video_width;
-	float crop_top = (float)sink->crop_top / sink->video_height;
-	float crop_bottom = (float)sink->crop_bottom / sink->video_height;
+	float crop_left = (float)sink->crop_left / sink->width;
+	float crop_right = (float)sink->crop_right / sink->width;
+	float crop_top = (float)sink->crop_top / sink->height;
+	float crop_bottom = (float)sink->crop_bottom / sink->height;
 
 	texVertices[0] += crop_left;
 	texVertices[1] += crop_bottom;
@@ -186,7 +187,7 @@ void gl_draw_onscreen(GstGLESSink * sink)
 	glUseProgram(gles->scale.program);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	glViewport(0, 0, sink->x11.width, sink->x11.height);
+	glViewport(0, 0, sink->width, sink->height);
 
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -211,13 +212,12 @@ void gl_draw_onscreen(GstGLESSink * sink)
 
 void gl_clear_draw(GstGLESSink * sink)
 {
+	GstGLESContext *gles = &sink->gles;
 	static int red = 0;
 	static int blue = 1;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, sink->x11.width, sink->x11.height);
-
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	glViewport(0, 0, sink->width, sink->height);
 
 	if (red == 0.0) {
 		red = 1.0;
@@ -251,7 +251,7 @@ static gint egl_init(GstGLESSink * sink)
 	EGLint major;
 	EGLint minor;
 
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
 
 	g_debug("egl get display");
 	gles->display = eglGetDisplay((EGLNativeDisplayType)
@@ -310,7 +310,7 @@ static gint egl_init(GstGLESSink * sink)
 
 static void egl_close(GstGLESSink * sink)
 {
-	GstGLESContext *context = &sink->gl_thread.gles;
+	GstGLESContext *context = &sink->gles;
 
 	const GLuint framebuffers[] = {
 		context->framebuffer
@@ -323,12 +323,10 @@ static void egl_close(GstGLESSink * sink)
 		context->rgb_tex.id
 	};
 
-	if (context->initialized) {
-		glDeleteFramebuffers(G_N_ELEMENTS(framebuffers), framebuffers);
-		glDeleteTextures(G_N_ELEMENTS(textures), textures);
-		gl_delete_shader(&context->scale);
-		gl_delete_shader(&context->deinterlace);
-	}
+	glDeleteFramebuffers(G_N_ELEMENTS(framebuffers), framebuffers);
+	glDeleteTextures(G_N_ELEMENTS(textures), textures);
+	gl_delete_shader(&context->scale);
+	gl_delete_shader(&context->deinterlace);
 
 	if (context->context) {
 		eglDestroyContext(context->display, context->context);
@@ -344,11 +342,9 @@ static void egl_close(GstGLESSink * sink)
 		eglTerminate(context->display);
 		context->display = NULL;
 	}
-
-	context->initialized = FALSE;
 }
 
-static gint x11_init(GstGLESSink * sink, gint width, gint height)
+static gint x11_init(GstGLESSink * sink)
 {
 	XSetWindowAttributes swa;
 	Atom fullscreen;
@@ -356,6 +352,7 @@ static gint x11_init(GstGLESSink * sink, gint width, gint height)
 	Atom wm_state;
 	Window root;
 	XEvent xev;
+	int screen;
 
 	sink->x11.display = XOpenDisplay(NULL);
 	if (!sink->x11.display) {
@@ -363,62 +360,54 @@ static gint x11_init(GstGLESSink * sink, gint width, gint height)
 		return -1;
 	}
 
-	XLockDisplay(sink->x11.display);
 	root = DefaultRootWindow(sink->x11.display);
-	swa.event_mask =
-	    StructureNotifyMask | ExposureMask | VisibilityChangeMask;
+	screen = DefaultScreen(sink->x11.display);
 
-	if (!sink->x11.window) {
-		sink->x11.window = XCreateWindow(sink->x11.display, root,
-						 0, 0, width, height, 0,
-						 CopyFromParent, InputOutput,
-						 CopyFromParent, CWEventMask,
-						 &swa);
+	sink->width = DisplayWidth(sink->x11.display, screen);
+	sink->height = DisplayHeight(sink->x11.display, screen);
+	g_print("\tResolution: %ux%u\n", sink->width, sink->height);
 
-		XSetWindowBackgroundPixmap(sink->x11.display, sink->x11.window,
-					   None);
+	XLockDisplay(sink->x11.display);
 
-		hints.input = True;
-		hints.flags = InputHint;
-		XSetWMHints(sink->x11.display, sink->x11.window, &hints);
+	memset(&swa, 0, sizeof(swa));
+	swa.event_mask = StructureNotifyMask | ExposureMask |
+			 VisibilityChangeMask;
 
-		fullscreen =
-		    XInternAtom(sink->x11.display, "_NET_WM_STATE_FULLSCREEN",
-				False);
-		wm_state =
-		    XInternAtom(sink->x11.display, "_NET_WM_STATE", False);
+	sink->x11.window = XCreateWindow(sink->x11.display, root, 0, 0,
+					 sink->width, sink->height, 0,
+					 CopyFromParent, InputOutput,
+					 CopyFromParent, CWEventMask,
+					 &swa);
 
-		memset(&xev, 0, sizeof(xev));
-		xev.type = ClientMessage;
-		xev.xclient.window = sink->x11.window;
-		xev.xclient.message_type = wm_state;
-		xev.xclient.format = 32;
-		xev.xclient.data.l[0] = 1;
-		xev.xclient.data.l[1] = fullscreen;
-		xev.xclient.data.l[2] = 0;
+	XSetWindowBackgroundPixmap(sink->x11.display, sink->x11.window, None);
 
-		XMapWindow(sink->x11.display, sink->x11.window);
+	memset(&hints, 0, sizeof(hints));
+	hints.input = True;
+	hints.flags = InputHint;
 
-		XSendEvent(sink->x11.display,
-			   DefaultRootWindow(sink->x11.display), False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &xev);
+	XSetWMHints(sink->x11.display, sink->x11.window, &hints);
 
-		XFlush(sink->x11.display);
-		XStoreName(sink->x11.display, sink->x11.window, "GLESSink");
-	} else {
-		guint border, depth;
-		int x, y;
-		/* change event mask, so we get resize notifications */
-		XSelectInput(sink->x11.display, sink->x11.window,
-			     ExposureMask | StructureNotifyMask |
-			     PointerMotionMask | KeyPressMask | KeyReleaseMask);
+	fullscreen = XInternAtom(sink->x11.display, "_NET_WM_STATE_FULLSCREEN",
+				 False);
+	wm_state = XInternAtom(sink->x11.display, "_NET_WM_STATE", False);
 
-		/* retrieve the current window geometry */
-		XGetGeometry(sink->x11.display, sink->x11.window, &root,
-			     &x, &y, (uint *) & sink->x11.width,
-			     (uint *) & sink->x11.height, &border, &depth);
-	}
+	memset(&xev, 0, sizeof(xev));
+	xev.type = ClientMessage;
+	xev.xclient.window = sink->x11.window;
+	xev.xclient.message_type = wm_state;
+	xev.xclient.format = 32;
+	xev.xclient.data.l[0] = 1;
+	xev.xclient.data.l[1] = fullscreen;
+	xev.xclient.data.l[2] = 0;
+
+	XMapWindow(sink->x11.display, sink->x11.window);
+
+	XSendEvent(sink->x11.display, DefaultRootWindow(sink->x11.display),
+		   False, SubstructureRedirectMask | SubstructureNotifyMask,
+		   &xev);
+
+	XFlush(sink->x11.display);
+	XStoreName(sink->x11.display, sink->x11.window, "GLESSink");
 
 	XUnlockDisplay(sink->x11.display);
 
@@ -447,13 +436,11 @@ static void x11_close(GstGLESSink * sink)
 
 static gint setup_gl_context(GstGLESSink * sink)
 {
-	GstGLESContext *gles = &sink->gl_thread.gles;
+	GstGLESContext *gles = &sink->gles;
 	int shader;
 	gint ret;
 
-	sink->x11.width = 1366;
-	sink->x11.height = 768;
-	if (x11_init(sink, sink->x11.width, sink->x11.height) < 0) {
+	if (x11_init(sink) < 0) {
 		g_error("X11 init failed, abort");
 		return -ENOMEM;
 	}
@@ -512,9 +499,6 @@ int gst_gles_sink_init(GstGLESSink * sink, unsigned int depth)
 		sink->factor[i] = 1.0;
 
 	sink->silent = FALSE;
-	sink->gl_thread.gles.initialized = FALSE;
-	sink->video_width = 1366;
-	sink->video_height = 768;
 	sink->depth = depth;
 	sink->mode = GLES_BLANK;
 
