@@ -148,7 +148,7 @@ static int gles_egl_init(struct gles *gles)
 		return -1;
 	}
 
-	printf("EGL: %d.%d\n", major, minor);
+	printf("\tEGL: %d.%d\n", major, minor);
 
 	if (!eglChooseConfig(gles->egl.display, config_attribs, &config, 1,
 			     &num_configs)) {
