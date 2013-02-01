@@ -553,6 +553,322 @@ struct pipeline_stage *simple_copy_new(struct gles *gles,
 	return &stage->base;
 }
 
+struct deinterlace {
+	struct pipeline_stage base;
+
+	struct framebuffer *source;
+	struct framebuffer *target;
+
+	struct glsl_shader *vertex, *fragment;
+	struct glsl_program *program;
+
+	/* attribute locations */
+	GLint pos, tex;
+
+	/* uniform locations */
+	GLint input, offset;
+};
+
+static const GLchar *deinterlace_vs[] = {
+	"attribute vec2 position;\n",
+	"attribute vec2 tex;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"   gl_Position = vec4(position, 0.0, 1.0);\n",
+	"   vtex = tex;\n",
+	"}"
+};
+
+static const GLchar *deinterlace_fs[] = {
+	"precision mediump float;\n",
+	"uniform sampler2D source;\n",
+	"uniform float offset;\n"
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"    vec4 factor = vec4(0.3, 0.3, 0.3, 1.0);\n"
+	"    vec2 above, below;\n",
+	"    vec4 sum;\n",
+	"\n",
+	"    above.x = vtex.x;\n",
+	"    above.y = vtex.y - offset;\n",
+	"    below.x = vtex.x;\n",
+	"    below.y = vtex.y + offset;\n",
+	"\n",
+	"    sum = texture2D(source, above) + texture2D(source, vtex) +\n",
+	"          texture2D(source, below);\n",
+	"\n",
+	"    gl_FragColor = sum * factor;\n",
+	"}"
+};
+
+static inline struct deinterlace *to_deinterlace(struct pipeline_stage *stage)
+{
+	return (struct deinterlace *)stage;
+}
+
+static void deinterlace_release(struct pipeline_stage *stage)
+{
+	struct deinterlace *deinterlace = to_deinterlace(stage);
+
+	glsl_program_free(deinterlace->program);
+	free(deinterlace);
+}
+
+static void deinterlace_render(struct pipeline_stage *stage)
+{
+	struct deinterlace *deinterlace = to_deinterlace(stage);
+	struct gles *gles = stage->pipeline->gles;
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f,
+	};
+	static const GLfloat uv[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+	static const GLushort indices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+
+	glBindFramebuffer(GL_FRAMEBUFFER, deinterlace->target->id);
+	glUseProgram(deinterlace->program->id);
+
+	glVertexAttribPointer(deinterlace->pos, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), vertices);
+	glEnableVertexAttribArray(deinterlace->pos);
+
+	glVertexAttribPointer(deinterlace->tex, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), uv);
+	glEnableVertexAttribArray(deinterlace->tex);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, deinterlace->source->texture->id);
+	glUniform1i(deinterlace->input, 0);
+
+	glUniform1f(deinterlace->offset, 1.0f / gles->width);
+
+	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
+		       indices);
+}
+
+struct pipeline_stage *deinterlace_new(struct gles *gles,
+				       struct framebuffer *source,
+				       struct framebuffer *target)
+{
+	struct deinterlace *stage;
+
+	stage = calloc(1, sizeof(*stage));
+	if (!stage)
+		return NULL;
+
+	stage->base.name = "linear deinterlace operation";
+	stage->base.release = deinterlace_release;
+	stage->base.render = deinterlace_render;
+
+	stage->source = source;
+	stage->target = target;
+
+	stage->vertex = glsl_shader_new(GL_VERTEX_SHADER, deinterlace_vs,
+					ARRAY_SIZE(deinterlace_vs));
+	if (!stage->vertex) {
+		fprintf(stderr, "failed to create vertex shader\n");
+		return NULL;
+	}
+
+	stage->fragment = glsl_shader_new(GL_FRAGMENT_SHADER, deinterlace_fs,
+					  ARRAY_SIZE(deinterlace_fs));
+	if (!stage->fragment) {
+		fprintf(stderr, "failed to create fragment shader\n");
+		return NULL;
+	}
+
+	stage->program = glsl_program_new(stage->vertex, stage->fragment);
+	if (!stage->program) {
+		fprintf(stderr, "failed to create GLSL program\n");
+		return NULL;
+	}
+
+	if (glsl_program_link(stage->program) < 0) {
+		fprintf(stderr, "failed to link GLSL program\n");
+		return NULL;
+	}
+
+	stage->pos = glGetAttribLocation(stage->program->id, "position");
+	stage->tex = glGetAttribLocation(stage->program->id, "tex");
+	stage->input = glGetUniformLocation(stage->program->id, "source");
+	stage->offset = glGetUniformLocation(stage->program->id, "offset");
+
+	return &stage->base;
+}
+
+struct color_correct {
+	struct pipeline_stage base;
+
+	struct framebuffer *source;
+	struct framebuffer *target;
+
+	struct glsl_shader *vertex, *fragment;
+	struct glsl_program *program;
+
+	/* attribute locations */
+	GLint pos, tex;
+
+	/* uniform locations */
+	GLint input, add, factor;
+
+	GLfloat vadd[3], vfactor[3];
+};
+
+static const GLchar *color_correct_vs[] = {
+	"attribute vec2 position;\n",
+	"attribute vec2 tex;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"   gl_Position = vec4(position, 0.0, 1.0);\n",
+	"   vtex = tex;\n",
+	"}"
+};
+
+static const GLchar *color_correct_fs[] = {
+	"precision mediump float;\n",
+	"uniform sampler2D source;\n",
+	"uniform vec3 factor;\n",
+	"uniform vec3 add;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"    vec3 color = texture2D(source, vtex).rgb;\n",
+	"    color = (color + add) * factor;\n",
+	"    gl_FragColor = vec4(color, 1.0);\n",
+	"}"
+};
+
+static inline struct color_correct *to_color_correct(struct pipeline_stage *stage)
+{
+	return (struct color_correct *)stage;
+}
+
+static void color_correct_release(struct pipeline_stage *stage)
+{
+	struct color_correct *cc = to_color_correct(stage);
+
+	glsl_program_free(cc->program);
+	free(cc);
+}
+
+static void color_correct_render(struct pipeline_stage *stage)
+{
+	struct color_correct *cc = to_color_correct(stage);
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f,
+	};
+	static const GLfloat uv[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+	static const GLushort indices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+
+	glBindFramebuffer(GL_FRAMEBUFFER, cc->target->id);
+	glUseProgram(cc->program->id);
+
+	glVertexAttribPointer(cc->pos, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), vertices);
+	glEnableVertexAttribArray(cc->pos);
+
+	glVertexAttribPointer(cc->tex, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), uv);
+	glEnableVertexAttribArray(cc->tex);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, cc->source->texture->id);
+	glUniform1i(cc->input, 0);
+
+	glUniform3fv(cc->factor, 1, cc->vfactor);
+	glUniform3fv(cc->add, 1, cc->vadd);
+
+	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
+		       indices);
+}
+
+struct pipeline_stage *color_correct_new(struct gles *gles,
+					 struct framebuffer *source,
+					 struct framebuffer *target)
+{
+	struct color_correct *stage;
+
+	stage = calloc(1, sizeof(*stage));
+	if (!stage)
+		return NULL;
+
+	stage->base.name = "color correction operation";
+	stage->base.release = color_correct_release;
+	stage->base.render = color_correct_render;
+
+	stage->source = source;
+	stage->target = target;
+
+	stage->vertex = glsl_shader_new(GL_VERTEX_SHADER, color_correct_vs,
+					ARRAY_SIZE(color_correct_vs));
+	if (!stage->vertex) {
+		fprintf(stderr, "failed to create vertex shader\n");
+		return NULL;
+	}
+
+	stage->fragment = glsl_shader_new(GL_FRAGMENT_SHADER, color_correct_fs,
+					  ARRAY_SIZE(color_correct_fs));
+	if (!stage->fragment) {
+		fprintf(stderr, "failed to create fragment shader\n");
+		return NULL;
+	}
+
+	stage->program = glsl_program_new(stage->vertex, stage->fragment);
+	if (!stage->program) {
+		fprintf(stderr, "failed to create GLSL program\n");
+		return NULL;
+	}
+
+	if (glsl_program_link(stage->program) < 0) {
+		fprintf(stderr, "failed to link GLSL program\n");
+		return NULL;
+	}
+
+	stage->pos = glGetAttribLocation(stage->program->id, "position");
+	stage->tex = glGetAttribLocation(stage->program->id, "tex");
+	stage->input = glGetUniformLocation(stage->program->id, "source");
+	stage->factor = glGetUniformLocation(stage->program->id, "factor");
+	stage->add = glGetUniformLocation(stage->program->id, "add");
+
+	stage->vfactor[0] = 1.0f;
+	stage->vfactor[1] = 1.0f;
+	stage->vfactor[2] = 1.0f;
+
+	stage->vadd[0] = 0.0f;
+	stage->vadd[1] = 0.0f;
+	stage->vadd[2] = 0.0f;
+
+	return &stage->base;
+}
+
 static struct pipeline *create_pipeline(struct gles *gles, int argc,
 					char *argv[], bool regenerate)
 {
@@ -601,6 +917,18 @@ static struct pipeline *create_pipeline(struct gles *gles, int argc,
 			stage = simple_copy_new(gles, source, target);
 			if (!stage) {
 				fprintf(stderr, "simple_copy_new() failed\n");
+				goto error;
+			}
+		} else if (strcmp(argv[i], "deinterlace") == 0) {
+			stage = deinterlace_new(gles, source, target);
+			if (!stage) {
+				fprintf(stderr, "deinterlace_new() failed\n");
+				goto error;
+			}
+		} else if (strcmp(argv[i], "cc") == 0) {
+			stage = color_correct_new(gles, source, target);
+			if (!stage) {
+				fprintf(stderr, "color_correct_new() failed\n");
 				goto error;
 			}
 		} else {
