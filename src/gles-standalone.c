@@ -996,11 +996,11 @@ int main(int argc, char **argv)
 	struct pipeline *pipeline;
 	unsigned long depth = 24;
 	bool regenerate = false;
+	float duration, texels;
 	unsigned int frames;
 	uint64_t start, end;
 	struct timespec ts;
 	struct gles *gles;
-	float duration;
 	int opt;
 
 	while ((opt = getopt_long(argc, argv, "d:hV", options, NULL)) != -1) {
@@ -1061,6 +1061,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	texels = gles->width * gles->height * FRAME_COUNT;
+
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	start = timespec_to_usec(&ts);
 
@@ -1078,6 +1080,7 @@ int main(int argc, char **argv)
 	duration = (end - start) / 1000000.0f;
 	printf("\tRendered %d frames in %fs\n", FRAME_COUNT, duration);
 	printf("\tAverage fps was %.02f\n", FRAME_COUNT / duration);
+	printf("\tMTexels/s: %fs\n", (texels / 1000000.0f) / duration);
 
 	return 0;
 }
