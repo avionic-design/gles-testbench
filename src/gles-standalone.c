@@ -1074,18 +1074,21 @@ error:
 
 static void usage(FILE *fp, const char *program)
 {
-	fprintf(fp, "Usage: %s [options] TESTCASE\n", program);
+	fprintf(fp, "Usage: %s [options] PIPELINE...\n", program);
 	fprintf(fp, "Options:\n");
-	fprintf(fp, "  -d, --depth DEPTH  Set color depth.\n");
-	fprintf(fp, "  -h, --help         Display help screen and exit.\n");
-	fprintf(fp, "  -r, --regenerate   Regenerate test pattern for every frame.\n");
-	fprintf(fp, "  -V, --version      Display program version and exit.\n");
+	fprintf(fp, "  -d, --depth DEPTH     Set color depth.\n");
+	fprintf(fp, "  -h, --help            Display help screen and exit.\n");
+	fprintf(fp, "  -r, --regenerate      Regenerate test pattern for every frame.\n");
+	fprintf(fp, "  -s, --subdivisions N  Use N subdivisions to generate geometry.\n");
+	fprintf(fp, "  -t, --transform       Transform generated geometry.\n");
+	fprintf(fp, "  -V, --version         Display program version and exit.\n");
 	fprintf(fp, "\n");
-	fprintf(fp, "Test cases:\n");
-	fprintf(fp, "  blank         \n");
-	fprintf(fp, "  copy          \n");
-	fprintf(fp, "  one_source    \n");
-	fprintf(fp, "  deinterlace   \n");
+	fprintf(fp, "Pipeline Stages:\n");
+	fprintf(fp, "  fill          simple uniform fill generator\n");
+	fprintf(fp, "  checkerboard  checkerboard generator\n");
+	fprintf(fp, "  copy          simple copy\n");
+	fprintf(fp, "  deinterlace   linear deinterlacer\n");
+	fprintf(fp, "  cc            color correction\n");
 }
 
 static inline uint64_t timespec_to_usec(const struct timespec *tp)
