@@ -35,6 +35,7 @@
 
 #define FRAME_COUNT 600
 
+static unsigned int subdivisions = 0;
 struct pipeline;
 
 struct pipeline_stage {
@@ -710,6 +711,109 @@ struct pipeline_stage *deinterlace_new(struct gles *gles,
 	return &stage->base;
 }
 
+struct geometry {
+	unsigned int num_vertices;
+	GLfloat *vertices;
+	GLfloat *uv;
+
+	unsigned int num_indices;
+	GLushort *indices;
+};
+
+static struct geometry *grid_new(unsigned int subdivisions)
+{
+	unsigned int num_rows = 1, num_cols, num_quads = 1, num_triangles;
+	struct geometry *grid;
+	unsigned int i, j;
+
+	for (i = 0; i < subdivisions; i++)
+		num_rows *= 2;
+
+	num_cols = num_rows;
+
+	num_quads = num_rows * num_cols;
+	num_triangles = num_quads * 2;
+
+	grid = calloc(1, sizeof(*grid));
+	if (!grid)
+		return NULL;
+
+	grid->num_vertices = (num_rows + 1) * (num_cols + 1);
+
+	grid->vertices = calloc(grid->num_vertices * 3, sizeof(GLfloat));
+	if (!grid->vertices) {
+		free(grid);
+		return NULL;
+	}
+
+	grid->uv = calloc(grid->num_vertices * 2, sizeof(GLfloat));
+	if (!grid->uv) {
+		free(grid->vertices);
+		free(grid);
+		return NULL;
+	}
+
+	for (j = 0; j <= num_rows; j++) {
+		GLfloat *v = grid->vertices + j * (num_cols + 1) * 3;
+		GLfloat *t = grid->uv + j * (num_cols + 1) * 2;
+
+		for (i = 0; i <= num_cols; i++) {
+			float x, y;
+
+			x = -1.0f + (2.0f * i / num_cols);
+			y = -1.0f + (2.0f * j / num_rows);
+
+			v[(i * 3) + 0] = x;
+			v[(i * 3) + 1] = y;
+			v[(i * 3) + 2] = 0;
+
+			t[(i * 2) + 0] = 0.0f + (1.0f * i / num_cols);
+			t[(i * 2) + 1] = 0.0f + (1.0f * j / num_rows);
+		}
+	}
+
+	grid->num_indices = num_triangles * 3;
+
+	grid->indices = calloc(grid->num_indices, sizeof(GLshort));
+	if (!grid->indices) {
+		free(grid->uv);
+		free(grid->vertices);
+		free(grid);
+		return NULL;
+	}
+
+	for (j = 0; j < num_rows; j++) {
+		unsigned int sx = (j + 0) * (num_cols + 1);
+		unsigned int ex = (j + 1) * (num_cols + 1);
+
+		for (i = 0; i < num_cols; i++) {
+			unsigned int quad = (j * num_cols) + i;
+			GLushort *v = grid->indices + quad * 6;
+
+			v[0] = sx + i + 0;
+			v[1] = sx + i + 1;
+			v[2] = ex + i + 0;
+
+			v[3] = sx + i + 1;
+			v[4] = ex + i + 1;
+			v[5] = ex + i + 0;
+		}
+	}
+
+	return grid;
+}
+
+static void geometry_free(struct geometry *geometry)
+{
+	if (geometry) {
+		free(geometry->vertices);
+		free(geometry->indices);
+		free(geometry->uv);
+	}
+
+	free(geometry);
+}
+
 struct color_correct {
 	struct pipeline_stage base;
 
@@ -718,6 +822,7 @@ struct color_correct {
 
 	struct glsl_shader *vertex, *fragment;
 	struct glsl_program *program;
+	struct geometry *geometry;
 
 	/* attribute locations */
 	GLint pos, tex;
@@ -765,34 +870,23 @@ static void color_correct_release(struct pipeline_stage *stage)
 	struct color_correct *cc = to_color_correct(stage);
 
 	glsl_program_free(cc->program);
+	geometry_free(cc->geometry);
 	free(cc);
 }
 
 static void color_correct_render(struct pipeline_stage *stage)
 {
 	struct color_correct *cc = to_color_correct(stage);
-	static const GLfloat vertices[] = {
-		-1.0f, -1.0f,
-		 1.0f, -1.0f,
-		 1.0f,  1.0f,
-		-1.0f,  1.0f,
-	};
-	static const GLfloat uv[] = {
-		0.0f, 0.0f,
-		1.0f, 0.0f,
-		1.0f, 1.0f,
-		0.0f, 1.0f,
-	};
-	static const GLushort indices[] = {
-		0, 1, 2,
-		0, 2, 3
-	};
+	const GLfloat *vertices = cc->geometry->vertices;
+	const GLfloat *uv = cc->geometry->uv;
+	const GLushort *indices = cc->geometry->indices;
+	const GLsizei num_indices = cc->geometry->num_indices;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, cc->target->id);
 	glUseProgram(cc->program->id);
 
-	glVertexAttribPointer(cc->pos, 2, GL_FLOAT, GL_FALSE,
-			      2 * sizeof(GLfloat), vertices);
+	glVertexAttribPointer(cc->pos, 3, GL_FLOAT, GL_FALSE,
+			      3 * sizeof(GLfloat), vertices);
 	glEnableVertexAttribArray(cc->pos);
 
 	glVertexAttribPointer(cc->tex, 2, GL_FLOAT, GL_FALSE,
@@ -806,8 +900,7 @@ static void color_correct_render(struct pipeline_stage *stage)
 	glUniform3fv(cc->factor, 1, cc->vfactor);
 	glUniform3fv(cc->add, 1, cc->vadd);
 
-	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
-		       indices);
+	glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_SHORT, indices);
 }
 
 struct pipeline_stage *color_correct_new(struct gles *gles,
@@ -857,6 +950,12 @@ struct pipeline_stage *color_correct_new(struct gles *gles,
 	stage->input = glGetUniformLocation(stage->program->id, "source");
 	stage->factor = glGetUniformLocation(stage->program->id, "factor");
 	stage->add = glGetUniformLocation(stage->program->id, "add");
+
+	stage->geometry = grid_new(subdivisions);
+	if (!stage->geometry) {
+		fprintf(stderr, "failed to create geometry\n");
+		return NULL;
+	}
 
 	stage->vfactor[0] = 1.0f;
 	stage->vfactor[1] = 1.0f;
@@ -988,6 +1087,7 @@ int main(int argc, char **argv)
 		{ "depth", 1, NULL, 'd' },
 		{ "help", 0, NULL, 'h' },
 		{ "regenerate", 0, NULL, 'r' },
+		{ "subdivisions", 1, NULL, 's' },
 		{ "version", 0, NULL, 'V' },
 		{ NULL, 0, NULL, 0 },
 	};
@@ -1003,7 +1103,7 @@ int main(int argc, char **argv)
 	struct gles *gles;
 	int opt;
 
-	while ((opt = getopt_long(argc, argv, "d:hV", options, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "d:hs:V", options, NULL)) != -1) {
 		switch (opt) {
 		case 'd':
 			depth = strtoul(optarg, NULL, 10);
@@ -1019,6 +1119,10 @@ int main(int argc, char **argv)
 
 		case 'r':
 			regenerate = true;
+			break;
+
+		case 's':
+			subdivisions = strtoul(optarg, NULL, 10);
 			break;
 
 		case 'V':
