@@ -1,19 +1,22 @@
 /*
- * =====================================================================================
+ * Copyright (C) 2011 Julian Scheel <julian@jusst.de>
+ * Copyright (C) 2011 Soeren Grunewald <soeren.grunewald@avionic-design.de>
+ * Copyright (C) 2013 Avionic Design GmbH
  *
- *       Filename:  gles-standalone.c
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
  *
- *    Description:  
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
  *
- *        Version:  1.0
- *        Created:  11/21/12 09:50:34
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -26,12 +29,609 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#include <glib.h>
-#include <glib-object.h>
+#include "gles.h"
 
-#include "gstglessink.h"
 #define FRAME_COUNT 600
+
+struct pipeline;
+
+struct pipeline_stage {
+	const char *name;
+
+	void (*release)(struct pipeline_stage *stage);
+	void (*render)(struct pipeline_stage *stage);
+
+	struct pipeline_stage *next;
+	struct pipeline_stage *prev;
+
+	struct pipeline *pipeline;
+};
+
+static void pipeline_stage_free(struct pipeline_stage *stage)
+{
+	if (stage && stage->release)
+		stage->release(stage);
+}
+
+struct pipeline {
+	struct pipeline_stage *first;
+	struct pipeline_stage *last;
+
+	struct gles *gles;
+};
+
+struct pipeline *pipeline_new(struct gles *gles)
+{
+	struct pipeline *pipeline;
+
+	pipeline = calloc(1, sizeof(*pipeline));
+	if (!pipeline)
+		return NULL;
+
+	pipeline->gles = gles;
+
+	return pipeline;
+}
+
+void pipeline_free(struct pipeline *pipeline)
+{
+	struct pipeline_stage *stage = pipeline->first;
+
+	while (stage) {
+		struct pipeline_stage *next = stage->next;
+		pipeline_stage_free(stage);
+		stage = next;
+	}
+
+	free(pipeline);
+}
+
+void pipeline_add_stage(struct pipeline *pipeline, struct pipeline_stage *stage)
+{
+	if (pipeline->first == NULL && pipeline->last == NULL) {
+		pipeline->first = stage;
+		pipeline->last = stage;
+	} else {
+		pipeline->last->next = stage;
+		pipeline->last = stage;
+	}
+
+	stage->pipeline = pipeline;
+	stage->next = NULL;
+}
+
+void pipeline_render(struct pipeline *pipeline)
+{
+	struct gles *gles = pipeline->gles;
+	struct pipeline_stage *stage;
+
+	glViewport(0, 0, gles->width, gles->height);
+
+	for (stage = pipeline->first; stage; stage = stage->next)
+		stage->render(stage);
+
+	eglSwapBuffers(gles->egl.display, gles->egl.surface);
+}
+
+struct simple_fill {
+	struct pipeline_stage base;
+
+	struct framebuffer *target;
+
+	struct glsl_shader *vertex, *fragment;
+	struct glsl_program *program;
+
+	GLfloat red, green, blue;
+
+	/* attribute locations */
+	GLint pos, tex;
+
+	/* uniform locations */
+	GLint color;
+};
+
+static const GLchar *simple_fill_vs[] = {
+	"attribute vec2 position;\n",
+	"attribute vec2 tex;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"   gl_Position = vec4(position, 0.0, 1.0);\n",
+	"   vtex = tex;\n",
+	"}"
+};
+
+static const GLchar *simple_fill_fs[] = {
+	"precision mediump float;\n",
+	"uniform vec3 color;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"    gl_FragColor = vec4(color, 1.0);\n",
+	"}"
+};
+
+static inline struct simple_fill *to_simple_fill(struct pipeline_stage *stage)
+{
+	return (struct simple_fill *)stage;
+}
+
+static void simple_fill_release(struct pipeline_stage *stage)
+{
+	struct simple_fill *fill = to_simple_fill(stage);
+
+	glsl_program_free(fill->program);
+	free(fill);
+}
+
+static void simple_fill_render(struct pipeline_stage *stage)
+{
+	struct simple_fill *fill = to_simple_fill(stage);
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f,
+	};
+	static const GLfloat uv[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+	static const GLushort indices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fill->target->id);
+	glUseProgram(fill->program->id);
+
+	glVertexAttribPointer(fill->pos, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), vertices);
+	glEnableVertexAttribArray(fill->pos);
+
+	glVertexAttribPointer(fill->tex, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), uv);
+	glEnableVertexAttribArray(fill->tex);
+
+	glUniform3f(fill->color, fill->red, fill->green, fill->blue);
+
+	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
+		       indices);
+}
+
+struct pipeline_stage *simple_fill_new(struct gles *gles,
+				       struct framebuffer *target,
+				       GLfloat red, GLfloat green,
+				       GLfloat blue)
+{
+	struct simple_fill *stage;
+
+	stage = calloc(1, sizeof(*stage));
+	if (!stage)
+		return NULL;
+
+	stage->base.name = "simple fill pattern generator";
+	stage->base.release = simple_fill_release;
+	stage->base.render = simple_fill_render;
+
+	stage->target = target;
+	stage->red = red;
+	stage->green = green;
+	stage->blue = blue;
+
+	stage->vertex = glsl_shader_new(GL_VERTEX_SHADER, simple_fill_vs,
+					ARRAY_SIZE(simple_fill_vs));
+	if (!stage->vertex) {
+		fprintf(stderr, "failed to create vertex shader\n");
+		return NULL;
+	}
+
+	stage->fragment = glsl_shader_new(GL_FRAGMENT_SHADER, simple_fill_fs,
+					  ARRAY_SIZE(simple_fill_fs));
+	if (!stage->fragment) {
+		fprintf(stderr, "failed to create fragment shader\n");
+		return NULL;
+	}
+
+	stage->program = glsl_program_new(stage->vertex, stage->fragment);
+	if (!stage->program) {
+		fprintf(stderr, "failed to create GLSL program\n");
+		return NULL;
+	}
+
+	if (glsl_program_link(stage->program) < 0) {
+		fprintf(stderr, "failed to link GLSL program\n");
+		return NULL;
+	}
+
+	stage->pos = glGetAttribLocation(stage->program->id, "position");
+	stage->tex = glGetAttribLocation(stage->program->id, "tex");
+	stage->color = glGetUniformLocation(stage->program->id, "color");
+
+	return &stage->base;
+}
+
+struct checkerboard {
+	struct pipeline_stage base;
+
+	struct framebuffer *target;
+
+	struct glsl_shader *vertex, *fragment;
+	struct glsl_program *program;
+
+	/* attribute locations */
+	GLint pos, tex;
+
+	/* uniform locations */
+	GLint c1, c2, freq;
+};
+
+static const GLchar *checkerboard_vs[] = {
+	"attribute vec2 position;\n",
+	"attribute vec2 tex;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"   gl_Position = vec4(position, 0.0, 1.0);\n",
+	"   vtex = tex;\n",
+	"}"
+};
+
+static const GLchar *checkerboard_fs[] = {
+	"precision mediump float;\n",
+	"uniform vec3 color1, color2;\n",
+	"uniform float frequency;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"    vec2 position, pattern, threshold = vec2(0.5);\n",
+	"    vec3 color;\n",
+	"\n",
+	"    position = vtex * frequency;\n",
+	"    position = fract(position);\n",
+	"\n",
+	"    pattern = step(position, threshold);\n",
+	"\n",
+	"    if (pattern.y > 0.0)\n",
+	"        color = mix(color1, color2, pattern.x);\n",
+	"    else\n",
+	"        color = mix(color2, color1, pattern.x);\n",
+	"\n",
+	"    gl_FragColor = vec4(color, 1.0);\n",
+	"}"
+};
+
+static inline struct checkerboard *to_checkerboard(struct pipeline_stage *stage)
+{
+	return (struct checkerboard *)stage;
+}
+
+static void checkerboard_release(struct pipeline_stage *stage)
+{
+	struct checkerboard *board = to_checkerboard(stage);
+
+	glsl_program_free(board->program);
+	free(board);
+}
+
+static void checkerboard_render(struct pipeline_stage *stage)
+{
+	struct checkerboard *board = to_checkerboard(stage);
+	static const GLfloat red[3] = { 1.0f, 0.0f, 0.0f };
+	static const GLfloat blue[3] = { 0.0f, 0.0f, 1.0f };
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f,
+	};
+	static const GLfloat uv[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+	static const GLushort indices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+	static const GLfloat frequency = 16.0f;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, board->target->id);
+	glUseProgram(board->program->id);
+
+	glVertexAttribPointer(board->pos, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), vertices);
+	glEnableVertexAttribArray(board->pos);
+
+	glVertexAttribPointer(board->tex, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), uv);
+	glEnableVertexAttribArray(board->tex);
+
+	glUniform3fv(board->c1, 1, red);
+	glUniform3fv(board->c2, 1, blue);
+	glUniform1f(board->freq, frequency);
+
+	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
+		       indices);
+}
+
+struct pipeline_stage *checkerboard_new(struct gles *gles,
+					struct framebuffer *target)
+{
+	struct checkerboard *stage;
+
+	stage = calloc(1, sizeof(*stage));
+	if (!stage)
+		return NULL;
+
+	stage->base.name = "checkerboard pattern generator";
+	stage->base.release = checkerboard_release;
+	stage->base.render = checkerboard_render;
+
+	stage->target = target;
+
+	stage->vertex = glsl_shader_new(GL_VERTEX_SHADER, checkerboard_vs,
+					ARRAY_SIZE(checkerboard_vs));
+	if (!stage->vertex) {
+		fprintf(stderr, "failed to create vertex shader\n");
+		return NULL;
+	}
+
+	stage->fragment = glsl_shader_new(GL_FRAGMENT_SHADER, checkerboard_fs,
+					  ARRAY_SIZE(checkerboard_fs));
+	if (!stage->fragment) {
+		fprintf(stderr, "failed to create fragment shader\n");
+		return NULL;
+	}
+
+	stage->program = glsl_program_new(stage->vertex, stage->fragment);
+	if (!stage->program) {
+		fprintf(stderr, "failed to create GLSL program\n");
+		return NULL;
+	}
+
+	if (glsl_program_link(stage->program) < 0) {
+		fprintf(stderr, "failed to link GLSL program\n");
+		return NULL;
+	}
+
+	stage->pos = glGetAttribLocation(stage->program->id, "position");
+	stage->tex = glGetAttribLocation(stage->program->id, "tex");
+	stage->c1 = glGetUniformLocation(stage->program->id, "color1");
+	stage->c2 = glGetUniformLocation(stage->program->id, "color2");
+	stage->freq = glGetUniformLocation(stage->program->id, "frequency");
+
+	return &stage->base;
+}
+
+struct simple_copy {
+	struct pipeline_stage base;
+
+	struct framebuffer *source;
+	struct framebuffer *target;
+
+	struct glsl_shader *vertex, *fragment;
+	struct glsl_program *program;
+
+	/* attribute locations */
+	GLint pos, tex;
+
+	/* uniform locations */
+	GLint input;
+};
+
+static const GLchar *simple_copy_vs[] = {
+	"attribute vec2 position;\n",
+	"attribute vec2 tex;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"   gl_Position = vec4(position, 0.0, 1.0);\n",
+	"   vtex = tex;\n",
+	"}"
+};
+
+static const GLchar *simple_copy_fs[] = {
+	"precision mediump float;\n",
+	"uniform sampler2D source;\n",
+	"varying vec2 vtex;\n",
+	"\n",
+	"void main()\n",
+	"{\n",
+	"    gl_FragColor = texture2D(source, vtex);\n",
+	"}"
+};
+
+static inline struct simple_copy *to_simple_copy(struct pipeline_stage *stage)
+{
+	return (struct simple_copy *)stage;
+}
+
+static void simple_copy_release(struct pipeline_stage *stage)
+{
+	struct simple_copy *copy = to_simple_copy(stage);
+
+	glsl_program_free(copy->program);
+	free(copy);
+}
+
+static void simple_copy_render(struct pipeline_stage *stage)
+{
+	struct simple_copy *copy = to_simple_copy(stage);
+	static const GLfloat vertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f,
+	};
+	static const GLfloat uv[] = {
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		1.0f, 1.0f,
+		0.0f, 1.0f,
+	};
+	static const GLushort indices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+
+	glBindFramebuffer(GL_FRAMEBUFFER, copy->target->id);
+	glUseProgram(copy->program->id);
+
+	glVertexAttribPointer(copy->pos, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), vertices);
+	glEnableVertexAttribArray(copy->pos);
+
+	glVertexAttribPointer(copy->tex, 2, GL_FLOAT, GL_FALSE,
+			      2 * sizeof(GLfloat), uv);
+	glEnableVertexAttribArray(copy->tex);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, copy->source->texture->id);
+	glUniform1i(copy->input, 0);
+
+	glDrawElements(GL_TRIANGLES, ARRAY_SIZE(indices), GL_UNSIGNED_SHORT,
+		       indices);
+}
+
+struct pipeline_stage *simple_copy_new(struct gles *gles,
+				       struct framebuffer *source,
+				       struct framebuffer *target)
+{
+	struct simple_copy *stage;
+
+	stage = calloc(1, sizeof(*stage));
+	if (!stage)
+		return NULL;
+
+	stage->base.name = "simple texture copy operation";
+	stage->base.release = simple_copy_release;
+	stage->base.render = simple_copy_render;
+
+	stage->source = source;
+	stage->target = target;
+
+	stage->vertex = glsl_shader_new(GL_VERTEX_SHADER, simple_copy_vs,
+					ARRAY_SIZE(simple_copy_vs));
+	if (!stage->vertex) {
+		fprintf(stderr, "failed to create vertex shader\n");
+		return NULL;
+	}
+
+	stage->fragment = glsl_shader_new(GL_FRAGMENT_SHADER, simple_copy_fs,
+					  ARRAY_SIZE(simple_copy_fs));
+	if (!stage->fragment) {
+		fprintf(stderr, "failed to create fragment shader\n");
+		return NULL;
+	}
+
+	stage->program = glsl_program_new(stage->vertex, stage->fragment);
+	if (!stage->program) {
+		fprintf(stderr, "failed to create GLSL program\n");
+		return NULL;
+	}
+
+	if (glsl_program_link(stage->program) < 0) {
+		fprintf(stderr, "failed to link GLSL program\n");
+		return NULL;
+	}
+
+	stage->pos = glGetAttribLocation(stage->program->id, "position");
+	stage->tex = glGetAttribLocation(stage->program->id, "tex");
+	stage->input = glGetUniformLocation(stage->program->id, "source");
+
+	return &stage->base;
+}
+
+static struct pipeline *create_pipeline(struct gles *gles, int argc,
+					char *argv[], bool regenerate)
+{
+	struct framebuffer *source = NULL, *target = NULL;
+	struct pipeline *pipeline;
+	int i;
+
+	pipeline = pipeline_new(gles);
+	if (!pipeline)
+		return NULL;
+
+	for (i = 0; i < argc; i++) {
+		struct pipeline_stage *stage = NULL;
+
+		/*
+		 * FIXME: Keep a reference to the created target framebuffers
+		 *        so that they can be properly disposed of.
+		 */
+		if (i < argc - 1) {
+			target = framebuffer_new(gles->width, gles->height);
+			if (!target) {
+				fprintf(stderr, "failed to create framebuffer\n");
+				goto error;
+			}
+		} else {
+			target = display_framebuffer_new(gles->width, gles->height);
+			if (!target) {
+				fprintf(stderr, "failed to create display\n");
+				goto error;
+			}
+		}
+
+		if (strcmp(argv[i], "fill") == 0) {
+			stage = simple_fill_new(gles, target, 1.0, 0.0, 1.0);
+			if (!stage) {
+				fprintf(stderr, "simple_fill_new() failed\n");
+				goto error;
+			}
+		} else if (strcmp(argv[i], "checkerboard") == 0) {
+			stage = checkerboard_new(gles, target);
+			if (!stage) {
+				fprintf(stderr, "checkerboard_new() failed\n");
+				goto error;
+			}
+		} else if (strcmp(argv[i], "copy") == 0) {
+			stage = simple_copy_new(gles, source, target);
+			if (!stage) {
+				fprintf(stderr, "simple_copy_new() failed\n");
+				goto error;
+			}
+		} else {
+			fprintf(stderr, "unsupported pipeline stage: %s\n",
+				argv[i]);
+			goto error;
+		}
+
+		/*
+		 * Only add the generator to the pipeline if the regenerate
+		 * flag was passed. Otherwise, render it only once.
+		 */
+		if (i > 0 || regenerate) {
+			pipeline_add_stage(pipeline, stage);
+		} else {
+			stage->pipeline = pipeline;
+			stage->render(stage);
+			pipeline_stage_free(stage);
+		}
+
+		if (i < argc - 1)
+			source = target;
+	}
+
+	return pipeline;
+
+error:
+	framebuffer_free(target);
+	pipeline_free(pipeline);
+	return NULL;
+}
 
 static void usage(FILE *fp, const char *program)
 {
@@ -49,6 +649,11 @@ static void usage(FILE *fp, const char *program)
 	fprintf(fp, "  deinterlace   \n");
 }
 
+static inline uint64_t timespec_to_usec(const struct timespec *tp)
+{
+	return tp->tv_sec * 1000000 + tp->tv_nsec / 1000;
+}
+
 int main(int argc, char **argv)
 {
 	static const struct option options[] = {
@@ -58,12 +663,17 @@ int main(int argc, char **argv)
 		{ "version", 0, NULL, 'V' },
 		{ NULL, 0, NULL, 0 },
 	};
+	struct framebuffer *display;
+	struct framebuffer *source;
+	struct pipeline *pipeline;
 	unsigned long depth = 24;
 	bool regenerate = false;
-	GstGLESSink *sink;
-	gint64 start, stop;
+	unsigned int frames;
+	uint64_t start, end;
+	struct timespec ts;
+	struct gles *gles;
 	float duration;
-	int i = 0, opt, err;
+	int opt;
 
 	while ((opt = getopt_long(argc, argv, "d:hV", options, NULL)) != -1) {
 		switch (opt) {
@@ -98,43 +708,48 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	g_type_init();
-
-	sink = g_new0(GstGLESSink, 1);
-	if (!sink) {
-		g_error("Out of memory");
-		return -ENOMEM;
-	}
-
-	err = gst_gles_sink_init(sink, depth);
-	if (err < 0) {
-		fprintf(stderr, "failed to initialize GLES: %s\n",
-			strerror(-err));
+	gles = gles_new(depth, regenerate);
+	if (!gles) {
+		fprintf(stderr, "gles_new() failed\n");
 		return 1;
 	}
 
-	if (strcmp(argv[optind], "blank") == 0)
-		sink->mode = GLES_BLANK;
-	else if (strcmp(argv[optind], "copy") == 0)
-		sink->mode = GLES_COPY;
-	else if (strcmp(argv[optind], "one_source") == 0)
-		sink->mode = GLES_ONE_SOURCE;
-	else if (strcmp(argv[optind], "deinterlace") == 0)
-		sink->mode = GLES_DEINTERLACE;
-
-	gst_gles_sink_preroll(sink, regenerate);
-
-	start = g_get_monotonic_time();
-	while (i++ < FRAME_COUNT) {
-		gst_gles_sink_render(sink, regenerate);
+	display = display_framebuffer_new(gles->width, gles->height);
+	if (!display) {
+		fprintf(stderr, "display_framebuffer_new() failed\n");
+		return 1;
 	}
-	stop = g_get_monotonic_time();
 
-	gst_gles_sink_finalize(sink);
+	source = framebuffer_new(gles->width, gles->height);
+	if (!source) {
+		fprintf(stderr, "failed to create framebuffer\n");
+		return 1;
+	}
 
-	duration = (stop - start) / 1000000.0;
-	g_print("\tRendered %d frames in %fs\n", FRAME_COUNT, duration);
-	g_print("\tAverage fps was %.02f\n", FRAME_COUNT / duration);
+	pipeline = create_pipeline(gles, argc - optind, &argv[optind],
+				   regenerate);
+	if (!pipeline) {
+		fprintf(stderr, "failed to create pipeline\n");
+		return 1;
+	}
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	start = timespec_to_usec(&ts);
+
+	for (frames = 0; frames < FRAME_COUNT; frames++)
+		pipeline_render(pipeline);
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	end = timespec_to_usec(&ts);
+
+	pipeline_free(pipeline);
+	framebuffer_free(source);
+	display_framebuffer_free(display);
+	gles_free(gles);
+
+	duration = (end - start) / 1000000.0f;
+	printf("\tRendered %d frames in %fs\n", FRAME_COUNT, duration);
+	printf("\tAverage fps was %.02f\n", FRAME_COUNT / duration);
 
 	return 0;
 }
