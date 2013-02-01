@@ -1116,7 +1116,7 @@ int main(int argc, char **argv)
 	struct gles *gles;
 	int opt;
 
-	while ((opt = getopt_long(argc, argv, "d:hs:tV", options, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "d:hrs:tV", options, NULL)) != -1) {
 		switch (opt) {
 		case 'd':
 			depth = strtoul(optarg, NULL, 10);
