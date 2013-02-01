@@ -36,6 +36,7 @@
 #define FRAME_COUNT 600
 
 static unsigned int subdivisions = 0;
+static bool transform = false;
 struct pipeline;
 
 struct pipeline_stage {
@@ -760,8 +761,19 @@ static struct geometry *grid_new(unsigned int subdivisions)
 		for (i = 0; i <= num_cols; i++) {
 			float x, y;
 
-			x = -1.0f + (2.0f * i / num_cols);
-			y = -1.0f + (2.0f * j / num_rows);
+			if (transform) {
+				x = -1.0f + (2.0f * i / num_cols);
+				y = -1.0f + (2.0f * j / num_rows);
+
+				if ((i > 0) && (i < num_cols))
+					x += rand() / (2.0f * num_cols) / RAND_MAX;
+
+				if ((j > 0) && (j < num_rows))
+					y += rand() / (2.0f * num_cols) / RAND_MAX;
+			} else {
+				x = -1.0f + (2.0f * i / num_cols);
+				y = -1.0f + (2.0f * j / num_rows);
+			}
 
 			v[(i * 3) + 0] = x;
 			v[(i * 3) + 1] = y;
@@ -1088,6 +1100,7 @@ int main(int argc, char **argv)
 		{ "help", 0, NULL, 'h' },
 		{ "regenerate", 0, NULL, 'r' },
 		{ "subdivisions", 1, NULL, 's' },
+		{ "transform", 0, NULL, 't' },
 		{ "version", 0, NULL, 'V' },
 		{ NULL, 0, NULL, 0 },
 	};
@@ -1103,7 +1116,7 @@ int main(int argc, char **argv)
 	struct gles *gles;
 	int opt;
 
-	while ((opt = getopt_long(argc, argv, "d:hs:V", options, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "d:hs:tV", options, NULL)) != -1) {
 		switch (opt) {
 		case 'd':
 			depth = strtoul(optarg, NULL, 10);
@@ -1123,6 +1136,10 @@ int main(int argc, char **argv)
 
 		case 's':
 			subdivisions = strtoul(optarg, NULL, 10);
+			break;
+
+		case 't':
+			transform = true;
 			break;
 
 		case 'V':
