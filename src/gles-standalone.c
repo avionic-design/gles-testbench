@@ -1202,9 +1202,9 @@ int main(int argc, char **argv)
 	gles_free(gles);
 
 	duration = (end - start) / 1000000.0f;
-	printf("\tRendered %d frames in %fs\n", FRAME_COUNT, duration);
-	printf("\tAverage fps was %.02f\n", FRAME_COUNT / duration);
-	printf("\tMTexels/s: %fs\n", (texels / 1000000.0f) / duration);
+	printf("Rendered %d frames in %fs\n", FRAME_COUNT, duration);
+	printf("Average fps was %.02f\n", FRAME_COUNT / duration);
+	printf("MTexels/s: %fs\n", (texels / 1000000.0f) / duration);
 
 	return 0;
 }

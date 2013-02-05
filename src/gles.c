@@ -148,7 +148,7 @@ static int gles_egl_init(struct gles *gles)
 		return -1;
 	}
 
-	printf("\tEGL: %d.%d\n", major, minor);
+	printf("EGL: %d.%d\n", major, minor);
 
 	if (!eglChooseConfig(gles->egl.display, config_attribs, &config, 1,
 			     &num_configs)) {
@@ -222,7 +222,7 @@ static int gles_x_init(struct gles *gles)
 
 	gles->width = DisplayWidth(gles->x.display, screen);
 	gles->height = DisplayHeight(gles->x.display, screen);
-	printf("\tResolution: %ux%u\n", gles->width, gles->height);
+	printf("Resolution: %ux%u\n", gles->width, gles->height);
 
 	memset(&swa, 0, sizeof(swa));
 	swa.event_mask = StructureNotifyMask | ExposureMask |

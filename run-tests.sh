@@ -12,6 +12,13 @@ usage()
 	echo "  -h, --help       Display help screen and exit."
 }
 
+summarize()
+{
+	while read line; do
+		echo "    $line"
+	done
+}
+
 xserver_args=
 disable_vsync=no
 performance=no
@@ -113,20 +120,20 @@ done
 echo "done (PID:$X_PID)"
 
 echo "=============================================="
-echo " Test 1: 1 to 1 Texture copy"
-./src/gles-standalone $test_args copy
+echo " Test 1: 1 to 1 Texture Copy"
+./src/gles-standalone $test_args fill copy | summarize
+
+#echo "=============================================="
+#echo " Test 2: 1 to All Texture copy"
+#./src/gles-standalone $test_args fill copy-one | summarize
 
 echo "=============================================="
-echo " Test 2: 1 to All Texture copy"
-./src/gles-standalone $test_args one_source
+echo " Test 3: 3-Line Linear Blend"
+./src/gles-standalone $test_args fill deinterlace | summarize
 
-echo "=============================================="
-echo " Test 3: 3-line Linear blend"
-./src/gles-standalone $test_args deinterlace
-
-echo "=============================================="
-echo " Test 4: GL Blanking (no shaders)"
-./src/gles-standalone $test_args blank
+#echo "=============================================="
+#echo " Test 4: GL Blanking (no shaders)"
+#./src/gles-standalone $test_args blank | summarize
 
 echo "=============================================="
 
