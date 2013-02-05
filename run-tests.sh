@@ -123,17 +123,17 @@ echo "=============================================="
 echo " Test 1: 1 to 1 Texture Copy"
 ./src/gles-standalone $test_args fill copy | summarize
 
-#echo "=============================================="
-#echo " Test 2: 1 to All Texture copy"
-#./src/gles-standalone $test_args fill copy-one | summarize
+echo "=============================================="
+echo " Test 2: 1 to All Texture copy"
+./src/gles-standalone $test_args fill copyone | summarize
 
 echo "=============================================="
 echo " Test 3: 3-Line Linear Blend"
 ./src/gles-standalone $test_args fill deinterlace | summarize
 
-#echo "=============================================="
-#echo " Test 4: GL Blanking (no shaders)"
-#./src/gles-standalone $test_args blank | summarize
+echo "=============================================="
+echo " Test 4: GL Color Clearing (no shaders)"
+./src/gles-standalone $test_args clear | summarize
 
 echo "=============================================="
 
