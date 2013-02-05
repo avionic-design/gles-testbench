@@ -6,10 +6,19 @@ gles_standalone_CFLAGS = \
 	$(X11_CFLAGS)
 
 gles_standalone_SOURCES = \
+	filter-color-correct.c \
+	filter-copy.c \
+	filter-deinterlace.c \
+	generator-checkerboard.c \
+	generator-fill.c \
+	geometry.c \
+	geometry.h \
 	gles-standalone.c \
 	gles.c \
 	gles.h \
-	glsl.c
+	glsl.c \
+	pipeline.c \
+	pipeline.h
 
 gles_standalone_LDADD = \
 	$(GLESV2_LIBS) \
