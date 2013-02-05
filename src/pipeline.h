@@ -62,6 +62,8 @@ struct pipeline_stage *simple_fill_new(struct gles *gles,
 struct pipeline_stage *checkerboard_new(struct gles *gles,
 					struct geometry *geometry,
 					struct framebuffer *target);
+struct pipeline_stage *clear_new(struct gles *gles, struct framebuffer *target,
+				 GLfloat red, GLfloat green, GLfloat blue);
 struct pipeline_stage *simple_copy_new(struct gles *gles,
 				       struct geometry *geometry,
 				       struct framebuffer *source,

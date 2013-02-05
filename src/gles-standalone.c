@@ -111,6 +111,12 @@ static struct pipeline *create_pipeline(struct gles *gles, int argc,
 				fprintf(stderr, "checkerboard_new() failed\n");
 				goto error;
 			}
+		} else if (strcmp(argv[i], "clear") == 0) {
+			stage = clear_new(gles, target, 1.0f, 1.0f, 0.0f);
+			if (!stage) {
+				fprintf(stderr, "clear_new() failed\n");
+				goto error;
+			}
 		} else if (strcmp(argv[i], "copy") == 0) {
 			stage = simple_copy_new(gles, geometry, source, target);
 			if (!stage) {
@@ -180,6 +186,7 @@ static void usage(FILE *fp, const char *program)
 	fprintf(fp, "Pipeline Stages:\n");
 	fprintf(fp, "  fill          simple uniform fill generator\n");
 	fprintf(fp, "  checkerboard  checkerboard generator\n");
+	fprintf(fp, "  clear         clear generator\n");
 	fprintf(fp, "  copy          simple copy\n");
 	fprintf(fp, "  copyone       copy a single source pixel\n");
 	fprintf(fp, "  deinterlace   linear deinterlacer\n");

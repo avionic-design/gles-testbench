@@ -11,6 +11,7 @@ gles_standalone_SOURCES = \
 	filter-copy-one.c \
 	filter-deinterlace.c \
 	generator-checkerboard.c \
+	generator-clear.c \
 	generator-fill.c \
 	geometry.c \
 	geometry.h \
