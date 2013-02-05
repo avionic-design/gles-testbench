@@ -117,6 +117,12 @@ static struct pipeline *create_pipeline(struct gles *gles, int argc,
 				fprintf(stderr, "simple_copy_new() failed\n");
 				goto error;
 			}
+		} else if (strcmp(argv[i], "copyone") == 0) {
+			stage = copy_one_new(gles, geometry, source, target);
+			if (!stage) {
+				fprintf(stderr, "copy_one_new() failed\n");
+				goto error;
+			}
 		} else if (strcmp(argv[i], "deinterlace") == 0) {
 			stage = deinterlace_new(gles, geometry, source, target);
 			if (!stage) {
@@ -175,6 +181,7 @@ static void usage(FILE *fp, const char *program)
 	fprintf(fp, "  fill          simple uniform fill generator\n");
 	fprintf(fp, "  checkerboard  checkerboard generator\n");
 	fprintf(fp, "  copy          simple copy\n");
+	fprintf(fp, "  copyone       copy a single source pixel\n");
 	fprintf(fp, "  deinterlace   linear deinterlacer\n");
 	fprintf(fp, "  cc            color correction\n");
 }

@@ -8,6 +8,7 @@ gles_standalone_CFLAGS = \
 gles_standalone_SOURCES = \
 	filter-color-correct.c \
 	filter-copy.c \
+	filter-copy-one.c \
 	filter-deinterlace.c \
 	generator-checkerboard.c \
 	generator-fill.c \
