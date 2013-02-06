@@ -27,6 +27,7 @@ struct clear {
 	struct pipeline_stage base;
 	struct framebuffer *target;
 	GLfloat red, green, blue;
+	bool black;
 };
 
 static inline struct clear *to_clear(struct pipeline_stage *stage)
@@ -46,8 +47,15 @@ static void clear_render(struct pipeline_stage *stage)
 	struct clear *clear = to_clear(stage);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, clear->target->id);
-	glClearColor(clear->red, clear->green, clear->blue, 1.0f);
+	glViewport(0, 0, clear->target->width, clear->target->height);
+
+	if (clear->black)
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	else
+		glClearColor(clear->red, clear->green, clear->blue, 1.0f);
+
 	glClear(GL_COLOR_BUFFER_BIT);
+	clear->black = !clear->black;
 }
 
 struct pipeline_stage *clear_new(struct gles *gles, struct framebuffer *target,
@@ -67,6 +75,7 @@ struct pipeline_stage *clear_new(struct gles *gles, struct framebuffer *target,
 	stage->red = red;
 	stage->green = green;
 	stage->blue = blue;
+	stage->black = true;
 
 	return &stage->base;
 }
