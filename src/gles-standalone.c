@@ -152,7 +152,7 @@ static struct pipeline *create_pipeline(struct gles *gles, int argc,
 		 * Only add the generator to the pipeline if the regenerate
 		 * flag was passed. Otherwise, render it only once.
 		 */
-		if (i > 0 || regenerate) {
+		if (i > 0 || regenerate || argc == 1) {
 			pipeline_add_stage(pipeline, stage);
 		} else {
 			stage->pipeline = pipeline;
