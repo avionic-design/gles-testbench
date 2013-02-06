@@ -80,5 +80,3 @@ void pipeline_render(struct pipeline *pipeline)
 
 	eglSwapBuffers(gles->egl.display, gles->egl.surface);
 }
-
-
