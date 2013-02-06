@@ -7,6 +7,8 @@ usage()
 	echo "Usage: $1 [options] test-case"
 	echo "Options:"
 	echo "  --disable-vsync  Disable synchronization to VBLANK."
+	echo "  --hdmi           Run tests on HDMI output."
+	echo "  --lvds           Run tests on LVDS output."
 	echo "  --performance    Run CPUs at maximum frequency."
 	echo "  --regenerate     Regenerate test pattern for every frame."
 	echo "  -h, --help       Display help screen and exit."
@@ -24,6 +26,8 @@ disable_vsync=no
 performance=no
 regenerate=no
 depth=24
+hdmi=no
+lvds=no
 
 while test $# -gt 0; do
 	if test -n "$prev"; then
@@ -43,9 +47,19 @@ while test $# -gt 0; do
 			shift
 			;;
 
+		--hdmi)
+			hdmi=yes
+			shift
+			;;
+
 		-h | --help)
 			usage $(basename $0)
 			exit 0
+			;;
+
+		--lvds)
+			lvds=yes
+			shift
 			;;
 
 		--performance)
@@ -64,6 +78,11 @@ while test $# -gt 0; do
 			;;
 	esac
 done
+
+if test "$hdmi" = "yes" -a "$lvds" = "yes"; then
+	echo "Conflicting options --hdmi and --lvds"
+	exit 1
+fi
 
 export LD_LIBRARY_PATH=/usr/lib
 
@@ -118,6 +137,18 @@ while ! test -f /tmp/.X0-lock; do
 done
 
 echo "done (PID:$X_PID)"
+
+if test "$hdmi" = "yes"; then
+	echo -n " Enabling HDMI..."
+	xrandr --output LVDS-1 --off --output HDMI-1 --auto
+	echo "done"
+fi
+
+if test "$lvds" = "yes"; then
+	echo -n " Enabling LVDS..."
+	xrandr --output LVDS-1 --auto --output HDMI-1 --off
+	echo "done"
+fi
 
 echo "=============================================="
 echo " Test 1: 1 to 1 Texture Copy"
