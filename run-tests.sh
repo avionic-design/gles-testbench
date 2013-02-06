@@ -6,12 +6,14 @@ usage()
 {
 	echo "Usage: $1 [options] test-case"
 	echo "Options:"
-	echo "  --disable-vsync  Disable synchronization to VBLANK."
-	echo "  --hdmi           Run tests on HDMI output."
-	echo "  --lvds           Run tests on LVDS output."
-	echo "  --performance    Run CPUs at maximum frequency."
-	echo "  --regenerate     Regenerate test pattern for every frame."
-	echo "  -h, --help       Display help screen and exit."
+	echo "  --disable-vsync         Disable synchronization to VBLANK."
+	echo "  --hdmi                  Run tests on HDMI output."
+	echo "  --lvds                  Run tests on LVDS output."
+	echo "  --performance           Run CPUs at maximum frequency."
+	echo "  --regenerate            Regenerate test pattern for every frame."
+	echo "  -s, --subdivisions NUM  Use NUM subdivisions for geometric adaption."
+	echo "  --transform             Simulate geometric adaption."
+	echo "  -h, --help              Display help screen and exit."
 }
 
 summarize()
@@ -25,6 +27,8 @@ xserver_args=
 disable_vsync=no
 performance=no
 regenerate=no
+subdivs=
+transform=no
 depth=24
 hdmi=no
 lvds=no
@@ -69,6 +73,16 @@ while test $# -gt 0; do
 
 		--regenerate)
 			regenerate=yes
+			shift
+			;;
+
+		-s | --subdivisions)
+			prev=subdivs
+			shift
+			;;
+
+		--transform)
+			transform=yes
 			shift
 			;;
 
@@ -125,6 +139,14 @@ test_args="--depth $depth"
 
 if test "$regenerate" = "yes"; then
 	test_args="$test_args --regenerate"
+fi
+
+if test -n "$subdivs"; then
+	test_args="$test_args --subdivisions $subdivs"
+fi
+
+if test "$transform" = "yes"; then
+	test_args="$test_args --transform"
 fi
 
 echo -n " Starting X server..."
