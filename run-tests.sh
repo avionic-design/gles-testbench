@@ -192,6 +192,11 @@ echo "=============================================="
 
 echo -n " Stopping X server..."
 kill $X_PID
+
+while test -f /tmp/.X0-lock; do
+	sleep 1
+done
+
 echo "done"
 
 if test "$performance" = "yes"; then
