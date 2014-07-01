@@ -41,9 +41,10 @@ static unsigned int subdivisions = 0;
 static bool transform = false;
 
 static struct pipeline *create_pipeline(struct gles *gles, int argc,
-					char *argv[], bool regenerate)
+					char *argv[], bool regenerate,
+					struct framebuffer *source)
 {
-	struct framebuffer *source = NULL, *target = NULL;
+	struct framebuffer *target = NULL;
 	struct geometry *plane, *output, *geometry;
 	struct pipeline *pipeline;
 	int i;
@@ -281,7 +282,7 @@ int main(int argc, char **argv)
 	}
 
 	pipeline = create_pipeline(gles, argc - optind, &argv[optind],
-				   regenerate);
+				   regenerate, source);
 	if (!pipeline) {
 		fprintf(stderr, "failed to create pipeline\n");
 		return 1;
